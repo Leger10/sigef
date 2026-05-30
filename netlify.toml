@@ -24,7 +24,7 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Environnement de production
+# Environnement de production – version Node.js compatible Vite 7
 [build.environment]
-  NODE_VERSION = "18"
-  NPM_VERSION = "9"
+  NODE_VERSION = "22"    # au lieu de 18
+  NPM_VERSION = "10"     # version récente (optionnelle)
