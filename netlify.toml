@@ -1,0 +1,30 @@
+# netlify.toml
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Redirects pour le routing SPA
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers pour la sécurité et le cache
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Cache pour les assets statiques
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Environnement de production
+[build.environment]
+  NODE_VERSION = "18"
+  NPM_VERSION = "9"
