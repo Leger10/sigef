@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Send, Mic, Square, Play, Paperclip, File, Image, FileText, Download, Trash2, X } from 'lucide-react';
+import { Send, Mic, Square, Play, Paperclip, File, Image, FileText, Download, Trash2, X, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -40,7 +40,6 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
   const currentUserIdStr = String(userId);
   const storageKey = `chat_last_read_${cycleId}_${userId}`;
 
-  // Notifier le parent à chaque changement du compteur
   useEffect(() => {
     onUnreadCountChange?.(unreadCount);
   }, [unreadCount, onUnreadCountChange]);
@@ -113,18 +112,19 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
     }
   };
 
+  // Realtime pour recevoir les messages des autres
   useEffect(() => {
     if (!cycleId) return;
     const channel = supabase
       .channel('cycle-chat-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'cycle_chat_messages' }, async (payload) => {
         if (payload.new.cycle_id === cycleId) {
-          const { data: userData } = await supabase.from('users').select('full_name').eq('id', payload.new.user_id).single();
-          const newMsg = { ...payload.new, user: userData || { full_name: 'Inconnu' } };
-          setMessages((prev) => [...prev, newMsg]);
-          if (!isUserAtBottomRef.current && newMsg.user_id !== userId) {
-            setUnreadCount(prev => prev + 1);
-          }
+          // Éviter les doublons et ajouter le nouveau message
+          setMessages((prev) => {
+            const exists = prev.some(msg => msg.id === payload.new.id);
+            if (exists) return prev;
+            return [...prev, payload.new];
+          });
           if (isUserAtBottomRef.current) setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         }
       })
@@ -135,78 +135,66 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
     return () => supabase.removeChannel(channel);
   }, [cycleId, userId]);
 
-  const sendMessage = async () => {
-    if (pendingFile) {
-      await uploadPendingFile();
-      if (newMessage.trim()) {
-        const comment = newMessage.trim();
-        const tempId = Date.now();
-        const newMsg = {
-          id: tempId,
-          cycle_id: cycleId,
-          user_id: userId,
-          message: comment,
-          created_at: new Date().toISOString(),
-          user: { full_name: userName }
-        };
-        setMessages(prev => [...prev, newMsg]);
-        setNewMessage('');
-        isUserAtBottomRef.current = true;
-        setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-        const { error } = await supabase.from('cycle_chat_messages').insert({
-          cycle_id: cycleId,
-          user_id: userId,
-          message: comment,
-          created_at: new Date().toISOString(),
-        });
-        if (error) {
-          setMessages(prev => prev.filter(m => m.id !== tempId));
-          toast.error('Erreur lors de l’envoi du commentaire');
-        } else {
-          const latestMsgDate = new Date();
-          localStorage.setItem(storageKey, latestMsgDate.toISOString());
-          setUnreadCount(0);
-          lastReadTimestampRef.current = latestMsgDate;
-        }
-      }
-      return;
-    }
-
-    if (!newMessage.trim()) return;
-    const tempId = Date.now();
-    const newMsg = {
+  // --- Envoi optimiste avec remplacement ---
+  const sendOptimisticMessage = (tempId, finalMessage, insertPromise) => {
+    // Ajout immédiat du message temporaire
+    setMessages(prev => [...prev, {
       id: tempId,
       cycle_id: cycleId,
       user_id: userId,
-      message: newMessage.trim(),
+      message: finalMessage,
       created_at: new Date().toISOString(),
       user: { full_name: userName }
-    };
-    setMessages(prev => [...prev, newMsg]);
-    setNewMessage('');
-    isUserAtBottomRef.current = true;
-    setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    const { error } = await supabase.from('cycle_chat_messages').insert({
-      cycle_id: cycleId,
-      user_id: userId,
-      message: newMessage.trim(),
-      created_at: new Date().toISOString(),
-    });
-    if (error) {
-      setMessages(prev => prev.filter(m => m.id !== tempId));
-      toast.error('Erreur lors de l’envoi du message');
-    } else {
-      const latestMsgDate = new Date();
-      localStorage.setItem(storageKey, latestMsgDate.toISOString());
-      setUnreadCount(0);
-      lastReadTimestampRef.current = latestMsgDate;
-    }
+    }]);
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+    insertPromise
+      .then((realMessage) => {
+        // Remplacer le temporaire par le vrai message (même ID temporaire, on garde l'ID réel)
+        setMessages(prev => prev.map(msg => msg.id === tempId ? { ...realMessage, id: realMessage.id } : msg));
+        // Mettre à jour le localStorage pour marquer comme lu
+        const latestMsgDate = new Date();
+        localStorage.setItem(storageKey, latestMsgDate.toISOString());
+        setUnreadCount(0);
+        lastReadTimestampRef.current = latestMsgDate;
+      })
+      .catch((error) => {
+        console.error('Erreur envoi:', error);
+        setMessages(prev => prev.filter(msg => msg.id !== tempId));
+        toast.error("Erreur lors de l'envoi");
+      });
   };
 
-  const uploadPendingFile = async () => {
-    if (!pendingFile) return;
-    const file = pendingFile;
+  const sendTextMessage = async (text) => {
+    if (!text.trim()) return;
+    const tempId = `temp_${Date.now()}_${Math.random()}`;
+    const promise = (async () => {
+      const { data, error } = await supabase.from('cycle_chat_messages').insert({
+        cycle_id: cycleId,
+        user_id: userId,
+        message: text,
+        created_at: new Date().toISOString(),
+      }).select().single();
+      if (error) throw error;
+      return data;
+    })();
+    sendOptimisticMessage(tempId, text, promise);
+  };
+
+  const sendFileMessage = async (file, comment = '') => {
     setUploading(true);
+    const tempId = `temp_${Date.now()}_${Math.random()}`;
+    const tempMessage = comment ? `${comment}\n📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB) – Envoi...` : `📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB) – Envoi...`;
+    setMessages(prev => [...prev, {
+      id: tempId,
+      cycle_id: cycleId,
+      user_id: userId,
+      message: tempMessage,
+      created_at: new Date().toISOString(),
+      user: { full_name: userName }
+    }]);
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${userId}.${fileExt}`;
@@ -220,22 +208,84 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
       else if (file.type === 'application/pdf') fileType = 'pdf';
       else if (file.type.includes('document')) fileType = 'doc';
       const fileMessage = `📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB)\n${fileUrl}\n[TYPE:${fileType}]`;
-      const { error: insertError } = await supabase.from('cycle_chat_messages').insert({
+      const finalMessage = comment ? `${comment}\n${fileMessage}` : fileMessage;
+      const { data, error: insertError } = await supabase.from('cycle_chat_messages').insert({
         cycle_id: cycleId,
         user_id: userId,
-        message: fileMessage,
+        message: finalMessage,
         created_at: new Date().toISOString(),
-      });
+      }).select().single();
       if (insertError) throw insertError;
+      // Remplacer le message temporaire
+      setMessages(prev => prev.map(msg => msg.id === tempId ? { ...data, id: data.id } : msg));
+      const latestMsgDate = new Date();
+      localStorage.setItem(storageKey, latestMsgDate.toISOString());
+      setUnreadCount(0);
+      lastReadTimestampRef.current = latestMsgDate;
       toast.success('Fichier envoyé');
-      setPendingFile(null);
     } catch (error) {
       console.error('Upload error:', error);
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
       toast.error('Erreur lors de l’envoi du fichier');
     } finally {
       setUploading(false);
+      setPendingFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const sendAudioMessage = async (audioBlob) => {
+    setUploading(true);
+    const tempId = `temp_${Date.now()}_${Math.random()}`;
+    setMessages(prev => [...prev, {
+      id: tempId,
+      cycle_id: cycleId,
+      user_id: userId,
+      message: '🎤 Envoi du message audio...',
+      created_at: new Date().toISOString(),
+      user: { full_name: userName }
+    }]);
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+    try {
+      const fileName = `audio_${Date.now()}_${userId}.webm`;
+      const filePath = `cycle_${cycleId}/${fileName}`;
+      const { error: uploadError } = await supabase.storage.from('chat_audio').upload(filePath, audioBlob, { contentType: 'audio/webm' });
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('chat_audio').getPublicUrl(filePath);
+      const audioUrl = urlData.publicUrl;
+      const audioMessage = `🎤 Message audio : ${audioUrl}`;
+      const { data, error: insertError } = await supabase.from('cycle_chat_messages').insert({
+        cycle_id: cycleId,
+        user_id: userId,
+        message: audioMessage,
+        created_at: new Date().toISOString(),
+      }).select().single();
+      if (insertError) throw insertError;
+      setMessages(prev => prev.map(msg => msg.id === tempId ? { ...data, id: data.id } : msg));
+      const latestMsgDate = new Date();
+      localStorage.setItem(storageKey, latestMsgDate.toISOString());
+      setUnreadCount(0);
+      lastReadTimestampRef.current = latestMsgDate;
+      toast.success('Audio envoyé');
+    } catch (error) {
+      console.error('Audio error:', error);
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
+      toast.error('Erreur lors de l’envoi audio');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (pendingFile) {
+      await sendFileMessage(pendingFile, newMessage.trim());
+      setNewMessage('');
+      return;
+    }
+    if (!newMessage.trim()) return;
+    await sendTextMessage(newMessage.trim());
+    setNewMessage('');
   };
 
   const handleFileSelect = (event) => {
@@ -279,7 +329,7 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
       mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); };
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await uploadAudio(audioBlob);
+        await sendAudioMessage(audioBlob);
         stream.getTracks().forEach(track => track.stop());
       };
       mediaRecorder.start();
@@ -294,34 +344,7 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
     if (mediaRecorderRef.current && recording) {
       mediaRecorderRef.current.stop();
       setRecording(false);
-      setUploading(true);
     }
-  };
-
-  const uploadAudio = async (audioBlob) => {
-    const fileName = `audio_${Date.now()}_${userId}.webm`;
-    const filePath = `cycle_${cycleId}/${fileName}`;
-    const { error: uploadError } = await supabase.storage.from('chat_audio').upload(filePath, audioBlob, { contentType: 'audio/webm' });
-    if (uploadError) {
-      toast.error('Erreur lors de l’upload audio');
-      setUploading(false);
-      return;
-    }
-    const { data: urlData } = supabase.storage.from('chat_audio').getPublicUrl(filePath);
-    const audioUrl = urlData.publicUrl;
-    const audioMessage = `🎤 Message audio : ${audioUrl}`;
-    const { error: insertError } = await supabase.from('cycle_chat_messages').insert({
-      cycle_id: cycleId,
-      user_id: userId,
-      message: audioMessage,
-      created_at: new Date().toISOString(),
-    });
-    if (insertError) {
-      toast.error('Erreur lors de l’envoi du message audio');
-    } else {
-      toast.success('Audio envoyé');
-    }
-    setUploading(false);
   };
 
   const deleteMessage = async (messageId, messageUserId) => {
@@ -331,6 +354,7 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
       return;
     }
     if (!window.confirm('Supprimer définitivement ce message ?')) return;
+    // Suppression optimiste
     setMessages(prev => prev.filter(msg => msg.id !== messageId));
     try {
       const { error } = await supabase.from('cycle_chat_messages').delete().eq('id', messageId);
@@ -359,13 +383,22 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
   };
 
   const renderMessage = (msg) => {
+    // Message temporaire (en cours d'envoi)
+    if (msg.id?.toString().startsWith('temp_')) {
+      return (
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-sm italic">Envoi en cours...</span>
+        </div>
+      );
+    }
     const audioMatch = msg.message?.match(/🎤 Message audio : (https?:\/\/[^\s]+)/);
     if (audioMatch) {
       const audioUrl = audioMatch[1];
       return (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Play className="h-4 w-4 cursor-pointer hover:scale-110 transition" onClick={() => new Audio(audioUrl).play()} />
-          <audio controls className="h-8 max-w-[180px]"><source src={audioUrl} type="audio/webm" /></audio>
+          <audio controls className="h-8 max-w-[180px] sm:max-w-[200px]"><source src={audioUrl} type="audio/webm" /></audio>
         </div>
       );
     }
@@ -403,20 +436,20 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
   if (loading) return <div className="flex justify-center py-12 text-muted-foreground">Chargement du chat...</div>;
 
   return (
-    <div className="flex flex-col h-[500px] border rounded-xl bg-background shadow-sm overflow-hidden">
+    <div className="flex flex-col h-[500px] sm:h-[550px] border rounded-xl bg-background shadow-sm overflow-hidden w-full max-w-full">
       <div className="flex justify-between items-center p-3 border-b bg-primary text-white rounded-t-xl">
-        <h3 className="font-semibold">
+        <h3 className="font-semibold text-sm sm:text-base flex items-center gap-2">
           Chat du cycle
           {unreadCount > 0 && (
-            <Badge variant="destructive" className="ml-2 bg-red-500 text-white">
+            <Badge variant="destructive" className="bg-red-500 text-white text-xs">
               {unreadCount} nouveau{unreadCount > 1 ? 'x' : ''}
             </Badge>
           )}
         </h3>
       </div>
-      <ScrollArea className="flex-1 p-4" onScroll={handleScroll}>
+      <ScrollArea className="flex-1 p-2 sm:p-4" onScroll={handleScroll}>
         <div className="space-y-3">
-          {messages.length === 0 && <div className="text-center text-muted-foreground py-12">Aucun message. Soyez le premier à écrire !</div>}
+          {messages.length === 0 && <div className="text-center text-muted-foreground py-12 text-sm">Aucun message. Soyez le premier à écrire !</div>}
           {messages.map((msg) => {
             const isCurrentUser = String(msg.user_id) === currentUserIdStr;
             const timeStr = formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: fr });
@@ -425,22 +458,22 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
             return (
               <div key={msg.id} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} items-start gap-2 group`}>
                 {!isCurrentUser && (
-                  <Avatar className="h-8 w-8 mt-1">
+                  <Avatar className="h-7 w-7 sm:h-8 sm:w-8 mt-1 flex-shrink-0">
                     <AvatarFallback className={`${avatarColor} text-white text-xs`}>{avatarFallback}</AvatarFallback>
                   </Avatar>
                 )}
-                <div className={`relative max-w-[70%] rounded-2xl px-4 py-2 shadow-sm ${isCurrentUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
+                <div className={`relative max-w-[85%] sm:max-w-[70%] rounded-2xl px-3 py-2 sm:px-4 sm:py-2 shadow-sm ${isCurrentUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
                   {!isCurrentUser && <div className="text-xs font-semibold mb-1 text-primary-foreground/80">{msg.user?.full_name || 'Anonyme'}</div>}
                   {renderMessage(msg)}
                   <div className={`text-[10px] mt-1 text-right ${isCurrentUser ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{timeStr}</div>
                   {canDeleteMessage(msg.user_id) && (
-                    <Button variant="ghost" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background/80 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteMessage(msg.id, msg.user_id)} title="Supprimer le message">
-                      <Trash2 className="h-3 w-3 text-destructive" />
+                    <Button variant="ghost" size="icon" className="absolute -top-2 -right-2 h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-background/80 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteMessage(msg.id, msg.user_id)} title="Supprimer le message">
+                      <Trash2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-destructive" />
                     </Button>
                   )}
                 </div>
                 {isCurrentUser && (
-                  <Avatar className="h-8 w-8 mt-1">
+                  <Avatar className="h-7 w-7 sm:h-8 sm:w-8 mt-1 flex-shrink-0">
                     <AvatarFallback className="bg-primary text-white text-xs">{userName.charAt(0).toUpperCase()}</AvatarFallback>
                   </Avatar>
                 )}
@@ -451,53 +484,55 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t bg-card">
+      <div className="p-3 sm:p-4 border-t bg-card">
         {pendingFile && (
-          <div className="mb-3 p-2 bg-muted rounded-lg flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm truncate">
+          <div className="mb-3 p-2 bg-muted rounded-lg flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 text-sm truncate flex-1 min-w-0">
               <Paperclip className="h-4 w-4 text-primary flex-shrink-0" />
               <span className="font-medium truncate">{pendingFile.name}</span>
               <span className="text-xs text-muted-foreground">({(pendingFile.size / 1024).toFixed(1)} KB)</span>
             </div>
-            <Button variant="ghost" size="sm" onClick={cancelPendingFile} className="h-6 w-6 p-0 rounded-full">
+            <Button variant="ghost" size="sm" onClick={cancelPendingFile} className="h-6 w-6 p-0 rounded-full flex-shrink-0">
               <X className="h-3 w-3" />
             </Button>
           </div>
         )}
 
-        <div className="flex gap-2 items-center">
-          <div className="flex-1">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex-1 min-w-[120px]">
             <Input
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder={pendingFile ? "Ajouter un commentaire (optionnel)..." : "Écrivez votre message..."}
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
               disabled={uploading}
-              className="rounded-full bg-muted/50 border-none focus-visible:ring-primary"
+              className="rounded-full bg-muted/50 border-none focus-visible:ring-primary text-sm"
             />
           </div>
 
-          <Button size="icon" onClick={sendMessage} disabled={(!newMessage.trim() && !pendingFile) || uploading} className="rounded-full shrink-0">
-            <Send className="h-4 w-4" />
-          </Button>
-
-          <Button size="icon" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="rounded-full shrink-0" title="Envoyer un fichier">
-            <Paperclip className="h-4 w-4" />
-          </Button>
-          <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
-
-          {!recording ? (
-            <Button size="icon" variant="outline" onClick={startRecording} disabled={uploading} className="text-red-500 hover:text-red-600 rounded-full shrink-0" title="Message vocal">
-              <Mic className="h-4 w-4" />
+          <div className="flex gap-1 sm:gap-2 flex-shrink-0">
+            <Button size="icon" onClick={sendMessage} disabled={(!newMessage.trim() && !pendingFile) || uploading} className="rounded-full h-9 w-9 sm:h-10 sm:w-10">
+              <Send className="h-4 w-4" />
             </Button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-red-500 animate-pulse">{formatDuration(recordingDuration)}</span>
-              <Button size="icon" variant="destructive" onClick={stopRecording} className="rounded-full shrink-0 animate-pulse" title="Arrêter l'enregistrement">
-                <Square className="h-4 w-4" />
+
+            <Button size="icon" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="rounded-full h-9 w-9 sm:h-10 sm:w-10" title="Envoyer un fichier">
+              <Paperclip className="h-4 w-4" />
+            </Button>
+            <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+
+            {!recording ? (
+              <Button size="icon" variant="outline" onClick={startRecording} disabled={uploading} className="text-red-500 hover:text-red-600 rounded-full h-9 w-9 sm:h-10 sm:w-10" title="Message vocal">
+                <Mic className="h-4 w-4" />
               </Button>
-            </div>
-          )}
+            ) : (
+              <div className="flex items-center gap-1 sm:gap-2">
+                <span className="text-xs font-mono text-red-500 animate-pulse">{formatDuration(recordingDuration)}</span>
+                <Button size="icon" variant="destructive" onClick={stopRecording} className="rounded-full h-9 w-9 sm:h-10 sm:w-10 animate-pulse" title="Arrêter l'enregistrement">
+                  <Square className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
         {uploading && <div className="text-xs text-center text-muted-foreground mt-2">Envoi en cours...</div>}
       </div>

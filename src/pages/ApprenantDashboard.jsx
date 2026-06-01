@@ -127,7 +127,12 @@ const DocumentsList = ({ cycleId, hasActivePro, refreshKey }) => {
                 {new Date(doc.created_at).toLocaleDateString("fr-FR")}
               </span>
             </div>
-            <Button variant="outline" size="sm" className="w-full gap-2" asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              asChild
+            >
               <a href={doc.file_url} target="_blank" rel="noopener noreferrer">
                 <Download className="h-4 w-4" /> Télécharger
               </a>
@@ -316,7 +321,7 @@ const ApprenantDashboard = () => {
   const [newDocsCount, setNewDocsCount] = useState(0);
   const [newUpcomingSessionsCount, setNewUpcomingSessionsCount] = useState(0);
   const [newHistorySessionsCount, setNewHistorySessionsCount] = useState(0);
-  const [newQuizzesCount, setNewQuizzesCount] = useState(0); // <-- Ajout
+  const [newQuizzesCount, setNewQuizzesCount] = useState(0);
   const [docsRefreshKey, setDocsRefreshKey] = useState(0);
 
   const [expandedSections, setExpandedSections] = useState({
@@ -405,7 +410,6 @@ const ApprenantDashboard = () => {
     if (!error) setNewHistorySessionsCount(count || 0);
   }, [userData?.cycle_id, currentUser?.id]);
 
-  // --- Nouveaux quiz (publiés après dernière visite) ---
   const fetchNewQuizzesCount = useCallback(async () => {
     if (!userData?.cycle_id || !currentUser?.id) return;
     const key = `last_quizzes_view_${userData.cycle_id}_${currentUser.id}`;
@@ -420,7 +424,6 @@ const ApprenantDashboard = () => {
     if (!error) setNewQuizzesCount(count || 0);
   }, [userData?.cycle_id, currentUser?.id]);
 
-  // --- Chargement initial des données ---
   useEffect(() => {
     const fetchData = async () => {
       if (!currentUser) {
@@ -469,7 +472,11 @@ const ApprenantDashboard = () => {
           setAvailableCycles(cyclesData || []);
         }
 
-        if (userFromDb.cycle_id && !userFromDb.admin_id && userCycle?.admin_id) {
+        if (
+          userFromDb.cycle_id &&
+          !userFromDb.admin_id &&
+          userCycle?.admin_id
+        ) {
           await supabase
             .from("users")
             .update({ admin_id: userCycle.admin_id })
@@ -530,7 +537,6 @@ const ApprenantDashboard = () => {
           .order("completed_at", { ascending: false });
         if (scoresData) setQuizScores(scoresData);
 
-        // Récupération des quiz publiés
         const { data: quizzesData } = await supabase
           .from("quizzes")
           .select("*")
@@ -544,7 +550,7 @@ const ApprenantDashboard = () => {
           await fetchNewDocumentsCount();
           await fetchNewUpcomingSessionsCount();
           await fetchNewHistorySessionsCount();
-          await fetchNewQuizzesCount(); // <-- Ajout
+          await fetchNewQuizzesCount();
         }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -555,9 +561,15 @@ const ApprenantDashboard = () => {
       }
     };
     if (currentUser) fetchData();
-  }, [currentUser, fetchNewCoursesCount, fetchNewDocumentsCount, fetchNewUpcomingSessionsCount, fetchNewHistorySessionsCount, fetchNewQuizzesCount]);
+  }, [
+    currentUser,
+    fetchNewCoursesCount,
+    fetchNewDocumentsCount,
+    fetchNewUpcomingSessionsCount,
+    fetchNewHistorySessionsCount,
+    fetchNewQuizzesCount,
+  ]);
 
-  // Rafraîchissement périodique des messages non lus
   useEffect(() => {
     if (!userData?.cycle_id) return;
     const interval = setInterval(() => {
@@ -566,7 +578,6 @@ const ApprenantDashboard = () => {
     return () => clearInterval(interval);
   }, [userData?.cycle_id]);
 
-  // Realtime pour les cours (Programmes)
   useEffect(() => {
     if (!userData?.cycle_id) return;
     const channelCourses = supabase
@@ -581,13 +592,12 @@ const ApprenantDashboard = () => {
         },
         () => {
           fetchNewCoursesCount();
-        }
+        },
       )
       .subscribe();
     return () => supabase.removeChannel(channelCourses);
   }, [userData?.cycle_id, fetchNewCoursesCount]);
 
-  // Realtime pour les documents (Ressources)
   useEffect(() => {
     if (!userData?.cycle_id) return;
     const channelDocs = supabase
@@ -602,13 +612,12 @@ const ApprenantDashboard = () => {
         },
         () => {
           fetchNewDocumentsCount();
-        }
+        },
       )
       .subscribe();
     return () => supabase.removeChannel(channelDocs);
   }, [userData?.cycle_id, fetchNewDocumentsCount]);
 
-  // Realtime pour les sessions (Aperçu et Historique)
   useEffect(() => {
     if (!userData?.cycle_id) return;
     const channelSessions = supabase
@@ -630,13 +639,16 @@ const ApprenantDashboard = () => {
           ) {
             fetchNewHistorySessionsCount();
           }
-        }
+        },
       )
       .subscribe();
     return () => supabase.removeChannel(channelSessions);
-  }, [userData?.cycle_id, fetchNewUpcomingSessionsCount, fetchNewHistorySessionsCount]);
+  }, [
+    userData?.cycle_id,
+    fetchNewUpcomingSessionsCount,
+    fetchNewHistorySessionsCount,
+  ]);
 
-  // Realtime pour les quiz (Nouveaux quiz publiés)
   useEffect(() => {
     if (!userData?.cycle_id) return;
     const channelQuizzes = supabase
@@ -651,7 +663,7 @@ const ApprenantDashboard = () => {
         },
         () => {
           fetchNewQuizzesCount();
-        }
+        },
       )
       .subscribe();
     return () => supabase.removeChannel(channelQuizzes);
@@ -662,7 +674,7 @@ const ApprenantDashboard = () => {
       ? (
           quizScores.reduce(
             (sum, s) => sum + (s.score / s.total_possible) * 100,
-            0
+            0,
           ) / quizScores.length
         ).toFixed(1)
       : 0;
@@ -794,7 +806,7 @@ const ApprenantDashboard = () => {
 
   const daysRemaining = userData?.pro_expiry
     ? Math.ceil(
-        (new Date(userData.pro_expiry) - new Date()) / (1000 * 60 * 60 * 24)
+        (new Date(userData.pro_expiry) - new Date()) / (1000 * 60 * 60 * 24),
       )
     : 0;
 
@@ -919,7 +931,7 @@ const ApprenantDashboard = () => {
                     <p className="text-3xl font-bold text-white">
                       {
                         sessions.filter(
-                          (s) => getSessionStatus(s) === "upcoming"
+                          (s) => getSessionStatus(s) === "upcoming",
                         ).length
                       }
                     </p>
@@ -959,44 +971,63 @@ const ApprenantDashboard = () => {
               </Card>
             </div>
 
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-8">
-              <TabsList className="grid w-full grid-cols-5 bg-card rounded-xl p-1">
-                <TabsTrigger value="overview" className="relative">
+            <Tabs
+              value={activeTab}
+              onValueChange={handleTabChange}
+              className="mt-8"
+            >
+              <TabsList className="grid grid-cols-3 md:grid-cols-5 bg-card rounded-xl p-1 gap-1">
+                <TabsTrigger
+                  value="overview"
+                  className="data-[state=active]:bg-primary/20"
+                >
                   Aperçu
                   {newUpcomingSessionsCount > 0 && (
-                    <Badge className="ml-2 bg-red-500 text-white animate-pulse">
+                    <Badge className="ml-1 bg-red-500 text-white animate-pulse text-xs">
                       {newUpcomingSessionsCount}
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="programs" className="relative">
+                <TabsTrigger
+                  value="programs"
+                  className="data-[state=active]:bg-primary/20"
+                >
                   Programmes
                   {newCoursesCount > 0 && (
-                    <Badge className="ml-2 bg-red-500 text-white animate-pulse">
+                    <Badge className="ml-1 bg-red-500 text-white animate-pulse text-xs">
                       {newCoursesCount}
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="resources" className="relative">
+                <TabsTrigger
+                  value="resources"
+                  className="data-[state=active]:bg-primary/20"
+                >
                   Ressources
                   {newDocsCount > 0 && (
-                    <Badge className="ml-2 bg-red-500 text-white animate-pulse">
+                    <Badge className="ml-1 bg-red-500 text-white animate-pulse text-xs">
                       {newDocsCount}
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="history" className="relative">
+                <TabsTrigger
+                  value="history"
+                  className="data-[state=active]:bg-primary/20"
+                >
                   Historique
                   {newHistorySessionsCount > 0 && (
-                    <Badge className="ml-2 bg-red-500 text-white animate-pulse">
+                    <Badge className="ml-1 bg-red-500 text-white animate-pulse text-xs">
                       {newHistorySessionsCount}
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="quizzes" className="relative">
-                  <FileQuestion className="h-4 w-4 mr-2" /> Quiz
+                <TabsTrigger
+                  value="quizzes"
+                  className="data-[state=active]:bg-primary/20"
+                >
+                  <FileQuestion className="h-4 w-4 mr-1 inline" /> Quiz
                   {newQuizzesCount > 0 && (
-                    <Badge className="ml-2 bg-red-500 text-white animate-pulse">
+                    <Badge className="ml-1 bg-red-500 text-white animate-pulse text-xs">
                       {newQuizzesCount}
                     </Badge>
                   )}
@@ -1005,15 +1036,16 @@ const ApprenantDashboard = () => {
 
               <TabsContent value="overview" className="mt-6 space-y-6">
                 {/* Section Mes sessions - collapsible */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 mt-8">
                   <Card className="premium-card overflow-hidden">
                     <div
                       className="flex items-center justify-between p-6 cursor-pointer hover:bg-muted/20 transition-colors"
                       onClick={() => toggleSection("sessions")}
                     >
-                      <CardHeader className="p-0">
+                      <CardHeader className="p-2">
                         <CardTitle className="flex items-center gap-2 text-white">
-                          <Video className="h-5 w-5 text-primary" /> Mes sessions
+                          <Video className="h-5 w-5 text-primary" /> Mes
+                          sessions
                         </CardTitle>
                         <CardDescription className="text-gray-400">
                           Rejoignez les lives en cours et consultez les replays
@@ -1042,7 +1074,7 @@ const ApprenantDashboard = () => {
                               return (
                                 <div
                                   key={session.id}
-                                  className="flex items-start gap-3 p-3 rounded-lg border border-border/50 hover:bg-muted/10 transition-colors"
+                                  className="flex flex-col sm:flex-row items-start gap-3 p-3 rounded-lg border border-border/50 hover:bg-muted/10 transition-colors"
                                 >
                                   <Calendar className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                                   <div className="flex-1 min-w-0">
@@ -1052,11 +1084,11 @@ const ApprenantDashboard = () => {
                                     <div className="flex flex-wrap items-center gap-2 mt-1">
                                       <span className="text-sm text-gray-400">
                                         {new Date(
-                                          session.scheduled_time
+                                          session.scheduled_time,
                                         ).toLocaleDateString("fr-FR")}{" "}
                                         à{" "}
                                         {new Date(
-                                          session.scheduled_time
+                                          session.scheduled_time,
                                         ).toLocaleTimeString([], {
                                           hour: "2-digit",
                                           minute: "2-digit",
@@ -1068,16 +1100,25 @@ const ApprenantDashboard = () => {
                                         </Badge>
                                       )}
                                       {isEnded && (
-                                        <Badge variant="secondary" className="text-xs">
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-xs"
+                                        >
                                           Terminée
                                         </Badge>
                                       )}
                                     </div>
                                   </div>
-                                  <div className="flex gap-2">
+                                  <div className="flex flex-wrap gap-2 shrink-0">
                                     {(isLive || isUpcoming) && hasActivePro && (
-                                      <Button variant="outline" size="sm" asChild>
-                                        <Link to={`/live-session/${session.id}`}>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                      >
+                                        <Link
+                                          to={`/live-session/${session.id}`}
+                                        >
                                           <PlayCircle className="w-4 h-4 mr-1" />
                                           {isLive ? "Rejoindre" : "Planifiée"}
                                         </Link>
@@ -1086,8 +1127,8 @@ const ApprenantDashboard = () => {
                                     {isEnded &&
                                       hasReplay &&
                                       (session.visibility === "all" ||
-                                      (session.visibility === "pro_only" &&
-                                        hasActivePro) ? (
+                                        (session.visibility === "pro_only" &&
+                                          hasActivePro)) && (
                                         <Button
                                           variant="default"
                                           size="sm"
@@ -1104,17 +1145,22 @@ const ApprenantDashboard = () => {
                                             Revoir le Live
                                           </a>
                                         </Button>
-                                      ) : session.visibility === "pro_only" &&
-                                        !hasActivePro ? (
-                                        <Button variant="outline" size="sm" disabled>
-                                          <Lock className="w-4 h-4 mr-1" /> PRO requis
+                                      )}
+                                    {!hasActivePro &&
+                                      (isLive ||
+                                        isUpcoming ||
+                                        (isEnded &&
+                                          session.visibility ===
+                                            "pro_only")) && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          disabled
+                                        >
+                                          <Lock className="w-4 h-4 mr-1" /> PRO
+                                          requis
                                         </Button>
-                                      ) : null)}
-                                    {!hasActivePro && (isLive || isUpcoming) && (
-                                      <Button variant="outline" size="sm" disabled>
-                                        <Lock className="w-4 h-4 mr-1" /> PRO requis
-                                      </Button>
-                                    )}
+                                      )}
                                   </div>
                                 </div>
                               );
@@ -1140,7 +1186,8 @@ const ApprenantDashboard = () => {
                     >
                       <CardHeader className="p-0">
                         <CardTitle className="flex items-center gap-2 text-white">
-                          <Trophy className="h-5 w-5 text-primary" /> Quiz récents
+                          <Trophy className="h-5 w-5 text-primary" /> Quiz
+                          récents
                         </CardTitle>
                         <CardDescription className="text-gray-400">
                           Vos dernières performances
@@ -1168,13 +1215,16 @@ const ApprenantDashboard = () => {
                                     {score.quiz?.title || "Quiz"}
                                   </p>
                                   <p className="text-xs text-gray-400">
-                                    {new Date(score.completed_at).toLocaleDateString()}
+                                    {new Date(
+                                      score.completed_at,
+                                    ).toLocaleDateString()}
                                   </p>
                                 </div>
                                 <div className="text-right">
                                   <p className="text-2xl font-bold text-primary">
                                     {Math.round(
-                                      (score.score / score.total_possible) * 100
+                                      (score.score / score.total_possible) *
+                                        100,
                                     )}
                                     %
                                   </p>
@@ -1276,7 +1326,9 @@ const ApprenantDashboard = () => {
                                   {payment.amount?.toLocaleString()} FCFA
                                 </p>
                                 <p className="text-xs text-gray-400">
-                                  {new Date(payment.created_at).toLocaleDateString()}
+                                  {new Date(
+                                    payment.created_at,
+                                  ).toLocaleDateString()}
                                 </p>
                               </div>
                               <Badge
@@ -1284,15 +1336,15 @@ const ApprenantDashboard = () => {
                                   payment.status === "approved"
                                     ? "bg-green-500/20 text-green-400 border-green-500/30"
                                     : payment.status === "pending"
-                                    ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-                                    : "bg-red-500/20 text-red-400 border-red-500/30"
+                                      ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                      : "bg-red-500/20 text-red-400 border-red-500/30"
                                 }
                               >
                                 {payment.status === "approved"
                                   ? "Validé"
                                   : payment.status === "pending"
-                                  ? "En attente"
-                                  : "Rejeté"}
+                                    ? "En attente"
+                                    : "Rejeté"}
                               </Badge>
                             </div>
                           ))}
@@ -1334,39 +1386,70 @@ const ApprenantDashboard = () => {
                 />
               </TabsContent>
 
-              {/* ONGLET QUIZ - VERSION AMÉLIORÉE */}
+              {/* ONGLET QUIZ */}
               <TabsContent value="quizzes" className="mt-6">
                 <div className="space-y-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-white mb-2">Quiz disponibles</h2>
+                    <h2 className="text-2xl font-bold text-white mb-2">
+                      Quiz disponibles
+                    </h2>
                     <p className="text-muted-foreground">
                       Testez vos connaissances et suivez votre progression
                     </p>
                   </div>
 
-                  {/* Quiz à venir (non encore tentés) */}
                   {(() => {
-                    const attemptedQuizIds = quizScores.map(s => s.quiz_id);
-                    const available = availableQuizzes.filter(q => !attemptedQuizIds.includes(q.id));
+                    const attemptedQuizIds = quizScores.map((s) => s.quiz_id);
+                    const available = availableQuizzes.filter(
+                      (q) => !attemptedQuizIds.includes(q.id),
+                    );
                     return available.length > 0 ? (
                       <div>
-                        <h3 className="text-lg font-semibold text-white mb-3">À venir</h3>
+                        <h3 className="text-lg font-semibold text-white mb-3">
+                          À venir
+                        </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           {available.map((quiz) => (
-                            <Card key={quiz.id} className="premium-card hover:border-primary/30 transition-all">
+                            <Card
+                              key={quiz.id}
+                              className="premium-card hover:border-primary/30 transition-all"
+                            >
                               <CardHeader>
-                                <CardTitle className="text-white">{quiz.title}</CardTitle>
-                                {quiz.description && <CardDescription>{quiz.description}</CardDescription>}
+                                <CardTitle className="text-white">
+                                  {quiz.title}
+                                </CardTitle>
+                                {quiz.description && (
+                                  <CardDescription>
+                                    {quiz.description}
+                                  </CardDescription>
+                                )}
                               </CardHeader>
                               <CardContent>
                                 <div className="flex flex-wrap gap-2 mb-4">
-                                  <Badge variant="outline">Seuil : {quiz.passing_score}%</Badge>
-                                  {quiz.time_limit && <Badge variant="outline">⏱️ {quiz.time_limit} min</Badge>}
-                                  <Badge variant="outline">Max : {quiz.max_attempts || 1} tentative(s)</Badge>
-                                  {quiz.pro_only && <Badge variant="default" className="bg-amber-500">PRO uniquement</Badge>}
+                                  <Badge variant="outline">
+                                    Seuil : {quiz.passing_score}%
+                                  </Badge>
+                                  {quiz.time_limit && (
+                                    <Badge variant="outline">
+                                      ⏱️ {quiz.time_limit} min
+                                    </Badge>
+                                  )}
+                                  <Badge variant="outline">
+                                    Max : {quiz.max_attempts || 1} tentative(s)
+                                  </Badge>
+                                  {quiz.pro_only && (
+                                    <Badge
+                                      variant="default"
+                                      className="bg-amber-500"
+                                    >
+                                      PRO uniquement
+                                    </Badge>
+                                  )}
                                 </div>
                                 <Button asChild className="w-full">
-                                  <Link to={`/quiz/${quiz.id}`}>Commencer le quiz</Link>
+                                  <Link to={`/quiz/${quiz.id}`}>
+                                    Commencer le quiz
+                                  </Link>
                                 </Button>
                               </CardContent>
                             </Card>
@@ -1376,32 +1459,61 @@ const ApprenantDashboard = () => {
                     ) : null;
                   })()}
 
-                  {/* Quiz complétés (avec résultats) */}
                   {quizScores.length > 0 && (
                     <div className="mt-8">
-                      <h3 className="text-lg font-semibold text-white mb-3">Quiz complétés</h3>
+                      <h3 className="text-lg font-semibold text-white mb-3">
+                        Quiz complétés
+                      </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {quizScores.map((attempt) => {
-                          const quizInfo = availableQuizzes.find(q => q.id === attempt.quiz_id);
-                          const percentage = Math.round((attempt.score / attempt.total_possible) * 100);
+                          const quizInfo = availableQuizzes.find(
+                            (q) => q.id === attempt.quiz_id,
+                          );
+                          const percentage = Math.round(
+                            (attempt.score / attempt.total_possible) * 100,
+                          );
                           return (
                             <Card key={attempt.id} className="premium-card">
                               <CardHeader>
-                                <CardTitle className="text-white">{quizInfo?.title || 'Quiz'}</CardTitle>
-                                <CardDescription>Complété le {new Date(attempt.completed_at).toLocaleDateString()}</CardDescription>
+                                <CardTitle className="text-white">
+                                  {quizInfo?.title || "Quiz"}
+                                </CardTitle>
+                                <CardDescription>
+                                  Complété le{" "}
+                                  {new Date(
+                                    attempt.completed_at,
+                                  ).toLocaleDateString()}
+                                </CardDescription>
                               </CardHeader>
                               <CardContent>
                                 <div className="flex justify-between items-center mb-4">
                                   <div>
-                                    <p className="text-2xl font-bold text-primary">{percentage}%</p>
-                                    <p className="text-xs text-muted-foreground">{attempt.score} / {attempt.total_possible} points</p>
+                                    <p className="text-2xl font-bold text-primary">
+                                      {percentage}%
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {attempt.score} / {attempt.total_possible}{" "}
+                                      points
+                                    </p>
                                   </div>
-                                  <Badge className={attempt.passed ? 'bg-green-500' : 'bg-red-500'}>
-                                    {attempt.passed ? 'Réussi' : 'Échec'}
+                                  <Badge
+                                    className={
+                                      attempt.passed
+                                        ? "bg-green-500"
+                                        : "bg-red-500"
+                                    }
+                                  >
+                                    {attempt.passed ? "Réussi" : "Échec"}
                                   </Badge>
                                 </div>
-                                <Button variant="outline" className="w-full" asChild>
-                                  <Link to={`/quiz-result/${attempt.quiz_id}`}>Voir le détail</Link>
+                                <Button
+                                  variant="outline"
+                                  className="w-full"
+                                  asChild
+                                >
+                                  <Link to={`/quiz-result/${attempt.quiz_id}`}>
+                                    Voir le détail
+                                  </Link>
                                 </Button>
                               </CardContent>
                             </Card>
@@ -1414,7 +1526,9 @@ const ApprenantDashboard = () => {
                   {availableQuizzes.length === 0 && quizScores.length === 0 && (
                     <Card className="premium-card text-center py-12">
                       <FileQuestion className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-                      <p className="text-muted-foreground">Aucun quiz n'est disponible pour le moment.</p>
+                      <p className="text-muted-foreground">
+                        Aucun quiz n'est disponible pour le moment.
+                      </p>
                     </Card>
                   )}
                 </div>

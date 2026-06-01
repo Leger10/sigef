@@ -416,3 +416,10 @@ input:focus, textarea:focus, select:focus {
 .chat-attract {
   animation: chatAttract 1.8s ease-in-out infinite;
 }
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

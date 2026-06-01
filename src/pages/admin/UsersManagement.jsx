@@ -25,7 +25,6 @@ import autoTable from 'jspdf-autotable';
 // Fonction utilitaire pour nettoyer le nom du cycle (enlève les préfixes bizarres)
 const cleanCycleName = (name) => {
   if (!name) return 'Non assigné';
-  // Supprime les caractères non alphabétiques au début jusqu'à rencontrer une lettre
   const cleaned = name.replace(/^[^a-zA-ZÀ-ÿ]+/, '');
   return cleaned || name;
 };
@@ -116,14 +115,12 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
-
       if (error) throw error;
-
       toast.success(`Abonnement PRO de ${user.full_name} désactivé`);
       fetchUsers();
       setViewDialog({ isOpen: false, user: null });
     } catch (err) {
-      console.error('Error deactivating subscription:', err);
+      console.error(err);
       toast.error('Erreur lors de la désactivation');
     } finally {
       setUpdating(false);
@@ -136,7 +133,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
       const daysToAdd = durationMonths * 30;
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + daysToAdd);
-      
       const { error } = await supabase
         .from('users')
         .update({ 
@@ -145,15 +141,13 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
-
       if (error) throw error;
-
       toast.success(`Abonnement PRO de ${user.full_name} réactivé pour ${durationMonths} mois`);
       fetchUsers();
       setReactivateDialog({ isOpen: false, user: null, durationMonths: 1 });
       setViewDialog({ isOpen: false, user: null });
     } catch (err) {
-      console.error('Error reactivating subscription:', err);
+      console.error(err);
       toast.error('Erreur lors de la réactivation');
     } finally {
       setUpdating(false);
@@ -167,7 +161,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
       const currentExpiry = user.pro_expiry ? new Date(user.pro_expiry) : new Date();
       const newExpiry = new Date(currentExpiry);
       newExpiry.setDate(newExpiry.getDate() + daysToAdd);
-      
       const { error } = await supabase
         .from('users')
         .update({ 
@@ -176,15 +169,13 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
-
       if (error) throw error;
-
       toast.success(`Abonnement PRO de ${user.full_name} renouvelé pour ${durationMonths} mois supplémentaires`);
       fetchUsers();
       setRenewDialog({ isOpen: false, user: null, durationMonths: 1 });
       setViewDialog({ isOpen: false, user: null });
     } catch (err) {
-      console.error('Error renewing subscription:', err);
+      console.error(err);
       toast.error('Erreur lors du renouvellement');
     } finally {
       setUpdating(false);
@@ -197,7 +188,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
       const daysToAdd = durationMonths * 30;
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + daysToAdd);
-      
       const { error } = await supabase
         .from('users')
         .update({ 
@@ -206,15 +196,13 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
-
       if (error) throw error;
-
       toast.success(`Abonnement PRO de ${user.full_name} activé pour ${durationMonths} mois`);
       fetchUsers();
       setReactivateDialog({ isOpen: false, user: null, durationMonths: 1 });
       setViewDialog({ isOpen: false, user: null });
     } catch (err) {
-      console.error('Error activating subscription:', err);
+      console.error(err);
       toast.error('Erreur lors de l\'activation');
     } finally {
       setUpdating(false);
@@ -229,13 +217,11 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
         .from('users')
         .update({ is_blocked: newStatus, updated_at: new Date().toISOString() })
         .eq('id', user.id);
-
       if (error) throw error;
-      
       toast.success(newStatus ? 'Compte bloqué' : 'Compte débloqué');
       fetchUsers();
     } catch (err) {
-      console.error('Error toggling block:', err);
+      console.error(err);
       toast.error('Erreur lors du changement');
     } finally {
       setUpdating(null);
@@ -271,7 +257,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
   const fetchUsers = async () => {
     setIsLoading(true);
     setError(null);
-
     try {
       const adminCycles = await fetchAdminCycles();
       const adminCycleIds = adminCycles.map(c => c.id);
@@ -301,7 +286,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
         const expiryDate = user.pro_expiry;
         const subscriptionStatus = getSubscriptionStatus(expiryDate);
         const daysLeft = getSubscriptionDaysLeft(expiryDate);
-        
         return {
           ...user,
           cycle_name: cyclesMap[user.cycle_id] || null,
@@ -315,10 +299,8 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
       });
 
       setUsers(enrichedUsers);
-      
       const total = enrichedUsers.filter(u => u.role === 'apprenant').length;
       setTotalApprenants(total);
-      
     } catch (err) {
       console.error('[UsersManagement] Error:', err);
       setError(err.message || 'Erreur lors du chargement des utilisateurs');
@@ -328,11 +310,9 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
     }
   };
 
-  // Chargement initial + souscription Realtime
   useEffect(() => {
     if (currentUser?.id) {
       fetchUsers();
-
       const subscription = supabase
         .channel('users-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
@@ -340,36 +320,25 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
           fetchUsers();
         })
         .subscribe();
-
-      return () => {
-        supabase.removeChannel(subscription);
-      };
+      return () => supabase.removeChannel(subscription);
     }
   }, [roleFilter, cycleFilter, currentUser?.id, isSuperAdmin]);
 
   const handleDelete = async () => {
     if (!deleteDialog.user) return;
-    
     const userToDelete = deleteDialog.user;
-    
     if (userToDelete.role === 'super_admin' || userToDelete.role === 'admin') {
       toast.error('Vous n’avez pas l’autorisation de supprimer ce compte.');
       setDeleteDialog({ isOpen: false, user: null });
       return;
     }
-    
     if (userToDelete.id === currentUser?.id) {
       toast.error('Vous ne pouvez pas supprimer votre propre compte.');
       setDeleteDialog({ isOpen: false, user: null });
       return;
     }
-    
     try {
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userToDelete.id);
-
+      const { error } = await supabase.from('users').delete().eq('id', userToDelete.id);
       if (error) throw error;
       toast.success('Utilisateur supprimé avec succès.');
       fetchUsers();
@@ -386,7 +355,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
       toast.error('Veuillez sélectionner un cycle');
       return;
     }
-
     try {
       const { error } = await supabase
         .from('users')
@@ -396,9 +364,7 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', assignDialog.user.id);
-
       if (error) throw error;
-
       toast.success(`${assignDialog.user.full_name} a été assigné au cycle avec succès.`);
       setAssignDialog({ isOpen: false, user: null, targetCycleId: '' });
       fetchUsers();
@@ -412,7 +378,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
     setExporting(true);
     try {
       const exportData = filteredUsers.map(user => ({
-        // 'Matricule': user.matricule || '-',
         'Nom complet': user.full_name || '-',
         'Email': user.email,
         'Téléphone': user.phone || '-',
@@ -427,21 +392,15 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
         'Statut compte': user.is_blocked ? 'Bloqué' : 'Actif',
         'Date création': new Date(user.created_at).toLocaleDateString('fr-FR')
       }));
-      
       const ws = XLSX.utils.json_to_sheet(exportData);
-      const colWidths = [
-        { wch: 15 }, { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 20 },
-        { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 15 }
-      ];
+      const colWidths = [{ wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 15 }];
       ws['!cols'] = colWidths;
-      
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Utilisateurs');
       XLSX.writeFile(wb, `utilisateurs_${new Date().toISOString().split('T')[0]}.xlsx`);
-      
       toast.success('Export Excel réussi');
     } catch (error) {
-      console.error('Erreur export Excel:', error);
+      console.error(error);
       toast.error('Erreur lors de l\'export Excel');
     } finally {
       setExporting(false);
@@ -452,8 +411,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
     setExporting(true);
     try {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      
-      // Titre
       doc.setFontSize(16);
       doc.text('Liste des utilisateurs', 14, 15);
       doc.setFontSize(10);
@@ -461,12 +418,7 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
       doc.text(`Exporté le ${new Date().toLocaleString('fr-FR')}`, 14, 25);
       doc.text(`Total: ${filteredUsers.length} utilisateur(s)`, 14, 32);
       
-      // Colonnes : on retire "Matricule"
-      const headers = [
-        'Nom complet', 'Email', 'Téléphone', 'Cycle',
-        'PRO', 'Statut abonnement', 'Date expiration', 'Statut compte'
-      ];
-      
+      const headers = ['Nom complet', 'Email', 'Téléphone', 'Cycle', 'PRO', 'Statut abonnement', 'Date expiration', 'Statut compte'];
       const rows = filteredUsers.map(user => [
         user.full_name?.substring(0, 30) || '-',
         user.email?.substring(0, 35) || '-',
@@ -488,23 +440,22 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
         headStyles: { fillColor: [41, 128, 185], textColor: 255, fontSize: 9, halign: 'center' },
         styles: { fontSize: 8, cellPadding: 2, valign: 'middle' },
         columnStyles: {
-          0: { cellWidth: 40 }, // Nom complet
-          1: { cellWidth: 50 }, // Email
-          2: { cellWidth: 25 }, // Téléphone
-          3: { cellWidth: 35 }, // Cycle (nettoyé)
-          4: { cellWidth: 15 }, // PRO
-          5: { cellWidth: 30 }, // Statut abonnement
-          6: { cellWidth: 25 }, // Date expiration
-          7: { cellWidth: 20 }  // Statut compte
+          0: { cellWidth: 40 },
+          1: { cellWidth: 50 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 35 },
+          4: { cellWidth: 15 },
+          5: { cellWidth: 30 },
+          6: { cellWidth: 25 },
+          7: { cellWidth: 20 }
         },
         margin: { left: 10, right: 10 },
         alternateRowStyles: { fillColor: [245, 245, 245] }
       });
-      
       doc.save(`utilisateurs_${new Date().toISOString().split('T')[0]}.pdf`);
       toast.success('Export PDF réussi');
     } catch (error) {
-      console.error('Erreur export PDF:', error);
+      console.error(error);
       toast.error('Erreur lors de l\'export PDF : ' + (error.message || 'Vérifiez jspdf-autotable'));
     } finally {
       setExporting(false);
@@ -517,51 +468,31 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
                           (user.matricule || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (user.phone || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCycle = cycleFilter === 'all' || user.cycle_id === cycleFilter;
-    
     let matchesPro = true;
     if (proFilter === 'pro') matchesPro = user.pro_status === true;
     if (proFilter === 'standard') matchesPro = !user.pro_status;
-
     let matchesStatus = true;
     if (statusFilter === 'assigned') matchesStatus = user.is_assigned === true;
     if (statusFilter === 'unassigned') matchesStatus = user.is_assigned === false;
     if (statusFilter === 'blocked') matchesStatus = user.is_blocked === true;
     if (statusFilter === 'active_account') matchesStatus = user.is_blocked === false;
-
     let matchesSubscription = true;
     if (subscriptionFilter === 'active') matchesSubscription = user.subscription_status === 'active';
     if (subscriptionFilter === 'expiring_soon') matchesSubscription = user.subscription_status === 'expiring_soon';
     if (subscriptionFilter === 'expired') matchesSubscription = user.subscription_status === 'expired';
     if (subscriptionFilter === 'no_subscription') matchesSubscription = user.subscription_status === 'no_subscription';
     if (subscriptionFilter === 'deactivated') matchesSubscription = user.pro_status === false && user.subscription_end_date === null;
-
     return matchesSearch && matchesCycle && matchesPro && matchesStatus && matchesSubscription;
   });
 
   const getSubscriptionBadge = (user) => {
     const status = user.subscription_status;
     const daysLeft = user.subscription_days_left;
-    
-    if (!user.pro_status && !user.subscription_end_date) {
-      return <Badge variant="outline" className="bg-gray-100 text-gray-600">Désactivé</Badge>;
-    }
-    
-    if (!user.subscription_end_date && user.pro_status === false) {
-      return <Badge variant="outline" className="bg-gray-100 text-gray-600">Non abonné</Badge>;
-    }
-    
-    if (status === 'active') {
-      return <Badge className="bg-green-500 text-white border-none">Actif ({daysLeft}j)</Badge>;
-    }
-    
-    if (status === 'expiring_soon') {
-      return <Badge className="bg-orange-500 text-white border-none">Expire dans {daysLeft}j</Badge>;
-    }
-    
-    if (status === 'expired') {
-      return <Badge variant="destructive">Expiré</Badge>;
-    }
-    
+    if (!user.pro_status && !user.subscription_end_date) return <Badge variant="outline" className="bg-gray-100 text-gray-600">Désactivé</Badge>;
+    if (!user.subscription_end_date && user.pro_status === false) return <Badge variant="outline" className="bg-gray-100 text-gray-600">Non abonné</Badge>;
+    if (status === 'active') return <Badge className="bg-green-500 text-white border-none">Actif ({daysLeft}j)</Badge>;
+    if (status === 'expiring_soon') return <Badge className="bg-orange-500 text-white border-none">Expire dans {daysLeft}j</Badge>;
+    if (status === 'expired') return <Badge variant="destructive">Expiré</Badge>;
     return <Badge variant="outline">-</Badge>;
   };
 
@@ -603,9 +534,7 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
           <div>
             <h3 className="font-bold">Erreur de chargement</h3>
             <p className="text-sm opacity-90">{error}</p>
-            <Button variant="outline" size="sm" onClick={fetchUsers} className="mt-2">
-              Réessayer
-            </Button>
+            <Button variant="outline" size="sm" onClick={fetchUsers} className="mt-2">Réessayer</Button>
           </div>
         </div>
       )}
@@ -707,8 +636,8 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
         </div>
         <div className="flex flex-wrap gap-3 w-full xl:w-auto">
           <Button variant="outline" size="icon" onClick={fetchUsers} title="Rafraîchir"><RefreshCw className="w-4 h-4" /></Button>
-          <Button variant="outline" onClick={handleExportExcel} disabled={exporting} className="gap-2"><FileSpreadsheet className="w-4 h-4 text-green-600" />Excel</Button>
-          <Button variant="outline" onClick={handleExportPDF} disabled={exporting} className="gap-2"><FileText className="w-4 h-4 text-red-600" />PDF</Button>
+          <Button variant="outline" onClick={handleExportExcel} disabled={exporting} className="gap-2"><FileSpreadsheet className="h-4 w-4 text-green-600" />Excel</Button>
+          <Button variant="outline" onClick={handleExportPDF} disabled={exporting} className="gap-2"><FileText className="h-4 w-4 text-red-600" />PDF</Button>
           <Select value={roleFilter} onValueChange={setRoleFilter}><SelectTrigger className="w-[140px] bg-background"><SelectValue placeholder="Rôle" /></SelectTrigger><SelectContent>{roleOptions.map(opt => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent></Select>
           <div className="relative w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Chercher par nom, email, téléphone, matricule..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-background" /></div>
           {cycles.length > 0 && (<Select value={cycleFilter} onValueChange={setCycleFilter}><SelectTrigger className="w-[160px] bg-background"><SelectValue placeholder="Tous les cycles" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les cycles</SelectItem>{cycles.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select>)}
@@ -727,7 +656,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
           <Table>
             <TableHeader className="bg-black">
               <TableRow>
-                {/* <TableHead className="text-white">Matricule</TableHead> */}
                 <TableHead className="text-white">Nom & Email</TableHead>
                 <TableHead className="text-white">Téléphone</TableHead>
                 <TableHead className="text-white">Cycle</TableHead>
@@ -742,7 +670,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
               {isLoading ? (
                 Array(5).fill(0).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-10 w-48" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
@@ -750,12 +677,12 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
                     <TableCell><Skeleton className="h-6 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-6 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : filteredUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">Aucun utilisateur ne correspond à vos critères.</TableCell>
+                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">Aucun utilisateur ne correspond à vos critères.</TableCell>
                 </TableRow>
               ) : (
                 filteredUsers.map(user => {
@@ -764,10 +691,8 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
                   const isDeactivated = !user.pro_status && !user.subscription_end_date;
                   const daysLeft = user.subscription_days_left;
                   const isBlocked = user.is_blocked;
-                  
                   return (
                     <TableRow key={user.id} className={`hover:bg-muted/30 ${isBlocked ? 'opacity-60 bg-red-500/5' : ''}`}>
-                      <TableCell className="font-mono text-sm">{user.matricule || '-'}</TableCell>
                       <TableCell>
                         <p className="font-bold">{user.full_name || 'Utilisateur'}</p>
                         <p className="text-xs text-muted-foreground">{user.email}</p>
@@ -835,7 +760,6 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
           {viewDialog.user && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {/* <div><Label className="text-muted-foreground">Matricule</Label><p className="font-medium">{viewDialog.user.matricule || '-'}</p></div> */}
                 <div><Label className="text-muted-foreground">Nom complet</Label><p className="font-medium">{viewDialog.user.full_name || '-'}</p></div>
                 <div><Label className="text-muted-foreground">Email</Label><p className="font-medium">{viewDialog.user.email}</p></div>
                 <div><Label className="text-muted-foreground">Téléphone</Label><p className="font-medium">{viewDialog.user.phone || '-'}</p></div>
@@ -858,63 +782,39 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Réactivation - choix libre des mois */}
+      {/* Dialog Réactivation */}
       <Dialog open={reactivateDialog.isOpen} onOpenChange={(open) => !open && setReactivateDialog({ isOpen: false, user: null, durationMonths: 1 })}>
         <DialogContent>
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Power className="w-5 h-5 text-green-500" />Réactiver l'abonnement PRO</DialogTitle><DialogDescription>Choisissez la durée de réactivation pour <strong>{reactivateDialog.user?.full_name || reactivateDialog.user?.email}</strong></DialogDescription></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Durée de l'abonnement (en mois)</Label>
-              <Input
-                type="number"
-                min="1"
-                max="60"
-                step="1"
-                value={reactivateDialog.durationMonths}
-                onChange={(e) => setReactivateDialog({...reactivateDialog, durationMonths: parseInt(e.target.value) || 1})}
-              />
-              <p className="text-xs text-muted-foreground">
-                L'utilisateur aura accès pendant {reactivateDialog.durationMonths} mois.
-              </p>
+              <Input type="number" min="1" max="60" step="1" value={reactivateDialog.durationMonths} onChange={(e) => setReactivateDialog({...reactivateDialog, durationMonths: parseInt(e.target.value) || 1})} />
+              <p className="text-xs text-muted-foreground">L'utilisateur aura accès pendant {reactivateDialog.durationMonths} mois.</p>
             </div>
-            <div className="p-3 bg-green-500/10 rounded-lg">
-              <p className="text-sm text-green-600 flex items-center gap-2"><Power className="w-4 h-4" />L'utilisateur retrouvera l'accès à tous les contenus PRO.</p>
-            </div>
+            <div className="p-3 bg-green-500/10 rounded-lg"><p className="text-sm text-green-600 flex items-center gap-2"><Power className="w-4 h-4" />L'utilisateur retrouvera l'accès à tous les contenus PRO.</p></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReactivateDialog({ isOpen: false, user: null, durationMonths: 1 })}>Annuler</Button>
-            <Button onClick={() => handleReactivateSubscription(reactivateDialog.user, reactivateDialog.durationMonths)} disabled={updating} className="bg-green-500 hover:bg-green-600">
-              {updating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Réactiver ({reactivateDialog.durationMonths} mois)
-            </Button>
+            <Button onClick={() => handleReactivateSubscription(reactivateDialog.user, reactivateDialog.durationMonths)} disabled={updating} className="bg-green-500 hover:bg-green-600">{updating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Réactiver ({reactivateDialog.durationMonths} mois)</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Renouvellement - choix libre des mois */}
+      {/* Dialog Renouvellement */}
       <Dialog open={renewDialog.isOpen} onOpenChange={(open) => !open && setRenewDialog({ isOpen: false, user: null, durationMonths: 1 })}>
         <DialogContent>
           <DialogHeader><DialogTitle className="flex items-center gap-2"><RefreshCcw className="w-5 h-5 text-orange-500" />Renouveler l'abonnement PRO</DialogTitle><DialogDescription>Choisissez la durée de renouvellement pour <strong>{renewDialog.user?.full_name || renewDialog.user?.email}</strong></DialogDescription></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Durée du renouvellement (en mois)</Label>
-              <Input
-                type="number"
-                min="1"
-                max="60"
-                step="1"
-                value={renewDialog.durationMonths}
-                onChange={(e) => setRenewDialog({...renewDialog, durationMonths: parseInt(e.target.value) || 1})}
-              />
-              <p className="text-xs text-muted-foreground">
-                Ajoute {renewDialog.durationMonths} mois à la date d'expiration actuelle.
-              </p>
+              <Input type="number" min="1" max="60" step="1" value={renewDialog.durationMonths} onChange={(e) => setRenewDialog({...renewDialog, durationMonths: parseInt(e.target.value) || 1})} />
+              <p className="text-xs text-muted-foreground">Ajoute {renewDialog.durationMonths} mois à la date d'expiration actuelle.</p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenewDialog({ isOpen: false, user: null, durationMonths: 1 })}>Annuler</Button>
-            <Button onClick={() => handleRenewSubscription(renewDialog.user, renewDialog.durationMonths)} disabled={updating} className="bg-orange-500 hover:bg-orange-600">
-              {updating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Renouveler ({renewDialog.durationMonths} mois)
-            </Button>
+            <Button onClick={() => handleRenewSubscription(renewDialog.user, renewDialog.durationMonths)} disabled={updating} className="bg-orange-500 hover:bg-orange-600">{updating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Renouveler ({renewDialog.durationMonths} mois)</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
