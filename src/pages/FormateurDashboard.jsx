@@ -475,9 +475,9 @@ const FormateurDashboard = () => {
 
       {/* Fenêtre du chat */}
       {chatOpen && selectedCycleId && (
-        <div className="fixed bottom-28 right-4 z-50 w-96 h-[500px] bg-background border rounded-xl shadow-2xl">
-          <div className="flex justify-between items-center p-3 border-b bg-primary text-white rounded-t-xl">
-            <h3 className="font-semibold">
+         <div className="fixed bottom-28 right-4 z-50 w-96 h-[500px] bg-background border rounded-xl shadow-2xl">
+            <div className="flex justify-between items-center p-3 border-b bg-primary text-white rounded-t-xl">
+              <h3 className="font-semibold">
               Chat du cycle : {selectedCycle?.name || "Non assigné"}
             </h3>
             <Button

@@ -29,6 +29,7 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
   const [pendingFile, setPendingFile] = useState(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [cycleName, setCycleName] = useState('');
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const scrollRef = useRef(null);
@@ -43,6 +44,15 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
   useEffect(() => {
     onUnreadCountChange?.(unreadCount);
   }, [unreadCount, onUnreadCountChange]);
+
+  useEffect(() => {
+    const fetchCycleName = async () => {
+      if (!cycleId) return;
+      const { data } = await supabase.from('cycles').select('name').eq('id', cycleId).single();
+      if (data) setCycleName(data.name);
+    };
+    fetchCycleName();
+  }, [cycleId]);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -112,14 +122,12 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
     }
   };
 
-  // Realtime pour recevoir les messages des autres
   useEffect(() => {
     if (!cycleId) return;
     const channel = supabase
       .channel('cycle-chat-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'cycle_chat_messages' }, async (payload) => {
         if (payload.new.cycle_id === cycleId) {
-          // Éviter les doublons et ajouter le nouveau message
           setMessages((prev) => {
             const exists = prev.some(msg => msg.id === payload.new.id);
             if (exists) return prev;
@@ -135,9 +143,7 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
     return () => supabase.removeChannel(channel);
   }, [cycleId, userId]);
 
-  // --- Envoi optimiste avec remplacement ---
   const sendOptimisticMessage = (tempId, finalMessage, insertPromise) => {
-    // Ajout immédiat du message temporaire
     setMessages(prev => [...prev, {
       id: tempId,
       cycle_id: cycleId,
@@ -150,9 +156,7 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
 
     insertPromise
       .then((realMessage) => {
-        // Remplacer le temporaire par le vrai message (même ID temporaire, on garde l'ID réel)
         setMessages(prev => prev.map(msg => msg.id === tempId ? { ...realMessage, id: realMessage.id } : msg));
-        // Mettre à jour le localStorage pour marquer comme lu
         const latestMsgDate = new Date();
         localStorage.setItem(storageKey, latestMsgDate.toISOString());
         setUnreadCount(0);
@@ -216,7 +220,6 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
         created_at: new Date().toISOString(),
       }).select().single();
       if (insertError) throw insertError;
-      // Remplacer le message temporaire
       setMessages(prev => prev.map(msg => msg.id === tempId ? { ...data, id: data.id } : msg));
       const latestMsgDate = new Date();
       localStorage.setItem(storageKey, latestMsgDate.toISOString());
@@ -354,7 +357,6 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
       return;
     }
     if (!window.confirm('Supprimer définitivement ce message ?')) return;
-    // Suppression optimiste
     setMessages(prev => prev.filter(msg => msg.id !== messageId));
     try {
       const { error } = await supabase.from('cycle_chat_messages').delete().eq('id', messageId);
@@ -383,7 +385,6 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
   };
 
   const renderMessage = (msg) => {
-    // Message temporaire (en cours d'envoi)
     if (msg.id?.toString().startsWith('temp_')) {
       return (
         <div className="flex items-center gap-2 text-muted-foreground">
@@ -436,17 +437,21 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
   if (loading) return <div className="flex justify-center py-12 text-muted-foreground">Chargement du chat...</div>;
 
   return (
-    <div className="flex flex-col h-[500px] sm:h-[550px] border rounded-xl bg-background shadow-sm overflow-hidden w-full max-w-full">
-      <div className="flex justify-between items-center p-3 border-b bg-primary text-white rounded-t-xl">
-        <h3 className="font-semibold text-sm sm:text-base flex items-center gap-2">
-          Chat du cycle
+    <div className="flex flex-col h-full w-full max-w-full overflow-hidden">
+      {/* En-tête responsive */}
+      <div className="flex justify-between items-center p-3 border-b bg-primary text-white">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <h3 className="font-semibold text-sm sm:text-base truncate">
+            {cycleName || 'Chat du cycle'}
+          </h3>
           {unreadCount > 0 && (
-            <Badge variant="destructive" className="bg-red-500 text-white text-xs">
+            <Badge variant="destructive" className="bg-red-500 text-white text-xs flex-shrink-0">
               {unreadCount} nouveau{unreadCount > 1 ? 'x' : ''}
             </Badge>
           )}
-        </h3>
+        </div>
       </div>
+
       <ScrollArea className="flex-1 p-2 sm:p-4" onScroll={handleScroll}>
         <div className="space-y-3">
           {messages.length === 0 && <div className="text-center text-muted-foreground py-12 text-sm">Aucun message. Soyez le premier à écrire !</div>}
@@ -498,40 +503,63 @@ const CycleChat = ({ cycleId, userId, onUnreadCountChange }) => {
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2 items-center">
-          <div className="flex-1 min-w-[120px]">
-            <Input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={pendingFile ? "Ajouter un commentaire (optionnel)..." : "Écrivez votre message..."}
-              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+        {/* Champ de saisie avec boutons intégrés */}
+        <div className="flex items-center gap-2 bg-muted/50 rounded-full border border-border focus-within:ring-1 focus-within:ring-primary px-3 py-1">
+          <Input
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder={pendingFile ? "Ajouter un commentaire (optionnel)..." : "Écrivez votre message..."}
+            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+            disabled={uploading}
+            className="flex-1 min-w-0 bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm py-2"
+          />
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="rounded-full bg-muted/50 border-none focus-visible:ring-primary text-sm"
-            />
-          </div>
-
-          <div className="flex gap-1 sm:gap-2 flex-shrink-0">
-            <Button size="icon" onClick={sendMessage} disabled={(!newMessage.trim() && !pendingFile) || uploading} className="rounded-full h-9 w-9 sm:h-10 sm:w-10">
-              <Send className="h-4 w-4" />
-            </Button>
-
-            <Button size="icon" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="rounded-full h-9 w-9 sm:h-10 sm:w-10" title="Envoyer un fichier">
+              className="h-8 w-8 rounded-full text-muted-foreground hover:text-primary"
+              title="Envoyer un fichier"
+            >
               <Paperclip className="h-4 w-4" />
             </Button>
             <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
 
             {!recording ? (
-              <Button size="icon" variant="outline" onClick={startRecording} disabled={uploading} className="text-red-500 hover:text-red-600 rounded-full h-9 w-9 sm:h-10 sm:w-10" title="Message vocal">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={startRecording}
+                disabled={uploading}
+                className="h-8 w-8 rounded-full text-red-500 hover:text-red-600"
+                title="Message vocal"
+              >
                 <Mic className="h-4 w-4" />
               </Button>
             ) : (
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="flex items-center gap-1">
                 <span className="text-xs font-mono text-red-500 animate-pulse">{formatDuration(recordingDuration)}</span>
-                <Button size="icon" variant="destructive" onClick={stopRecording} className="rounded-full h-9 w-9 sm:h-10 sm:w-10 animate-pulse" title="Arrêter l'enregistrement">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={stopRecording}
+                  className="h-8 w-8 rounded-full text-destructive animate-pulse"
+                  title="Arrêter l'enregistrement"
+                >
                   <Square className="h-4 w-4" />
                 </Button>
               </div>
             )}
+
+            <Button
+              size="icon"
+              onClick={sendMessage}
+              disabled={(!newMessage.trim() && !pendingFile) || uploading}
+              className="h-8 w-8 rounded-full bg-primary text-white hover:bg-primary/90"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
           </div>
         </div>
         {uploading && <div className="text-xs text-center text-muted-foreground mt-2">Envoi en cours...</div>}
