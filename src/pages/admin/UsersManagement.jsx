@@ -22,7 +22,6 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// Fonction utilitaire pour nettoyer le nom du cycle (enlève les préfixes bizarres)
 const cleanCycleName = (name) => {
   if (!name) return 'Non assigné';
   const cleaned = name.replace(/^[^a-zA-ZÀ-ÿ]+/, '');
@@ -57,6 +56,9 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
   const [reactivateDialog, setReactivateDialog] = useState({ isOpen: false, user: null, durationMonths: 1 });
   const [editDialog, setEditDialog] = useState({ isOpen: false, user: null });
   const [editForm, setEditForm] = useState({ full_name: '', email: '', phone: '' });
+
+  // Pour la protection du super admin principal (optionnel)
+  const ROOT_SUPER_ADMIN_EMAIL = 'digihouse10@gmail.com';
 
   const fetchAdminCycles = async () => {
     try {
@@ -324,29 +326,81 @@ const UsersManagement = ({ cycleId: propCycleId }) => {
     }
   }, [roleFilter, cycleFilter, currentUser?.id, isSuperAdmin]);
 
+  // Appel à l'Edge Function pour supprimer l'utilisateur de l'authentification
+  const deleteUserFromAuth = async (userId) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ userId })
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erreur lors de la suppression dans Auth');
+      }
+      return true;
+    } catch (error) {
+      console.error('Error deleting user from auth:', error);
+      toast.warning("L'utilisateur a été supprimé de la base, mais nous n'avons pas pu le supprimer du système d'authentification. Contactez l'administrateur.");
+      return false;
+    }
+  };
+
+  // Suppression définitive (table + auth)
   const handleDelete = async () => {
     if (!deleteDialog.user) return;
     const userToDelete = deleteDialog.user;
-    if (userToDelete.role === 'super_admin' || userToDelete.role === 'admin') {
-      toast.error('Vous n’avez pas l’autorisation de supprimer ce compte.');
-      setDeleteDialog({ isOpen: false, user: null });
-      return;
-    }
+    const currentUserEmail = currentUser?.email?.toLowerCase().trim();
+    const rootEmail = ROOT_SUPER_ADMIN_EMAIL.toLowerCase().trim();
+    const isRoot = currentUserEmail === rootEmail;
+
+    // Empêcher l'auto-suppression
     if (userToDelete.id === currentUser?.id) {
       toast.error('Vous ne pouvez pas supprimer votre propre compte.');
       setDeleteDialog({ isOpen: false, user: null });
       return;
     }
+
+    // Vérification pour les super-admins (seul le root peut les supprimer)
+    if (userToDelete.role === 'super_admin') {
+      if (!isRoot) {
+        toast.error('Vous n’avez pas l’autorisation de supprimer un super administrateur.');
+        setDeleteDialog({ isOpen: false, user: null });
+        return;
+      }
+    }
+
+    // Protection du compte root principal
+    if (userToDelete.email?.toLowerCase().trim() === rootEmail && !isRoot) {
+      toast.error('Vous ne pouvez pas supprimer le super administrateur principal.');
+      setDeleteDialog({ isOpen: false, user: null });
+      return;
+    }
+
+    setUpdating(true);
     try {
+      // 1. Supprimer de la table users (ON DELETE CASCADE gère les dépendances)
       const { error } = await supabase.from('users').delete().eq('id', userToDelete.id);
       if (error) throw error;
-      toast.success('Utilisateur supprimé avec succès.');
-      fetchUsers();
-    } catch (err) {
-      console.error('[UsersManagement] Delete error:', err);
-      toast.error('Impossible de supprimer l\'utilisateur.');
-    } finally {
+
+      // 2. Supprimer de l’auth via Edge Function (non bloquant)
+      try {
+        await deleteUserFromAuth(userToDelete.id);
+      } catch (authError) {
+        console.warn("L'utilisateur a été supprimé de la base mais pas de l'authentification:", authError);
+      }
+
+      toast.success('Utilisateur supprimé définitivement.');
+      await fetchUsers();
       setDeleteDialog({ isOpen: false, user: null });
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || 'Erreur lors de la suppression');
+    } finally {
+      setUpdating(false);
     }
   };
 

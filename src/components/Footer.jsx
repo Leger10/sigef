@@ -1,3 +1,4 @@
+// src/components/Footer.jsx
 import React from "react";
 import { Link } from "react-router-dom";
 import {
@@ -14,8 +15,14 @@ import {
 import { useAdminConfig } from "@/contexts/AdminConfigContext.jsx";
 import { getFileUrl } from "@/lib/supabaseClient.js";
 
-const Footer = () => {
-  const { config, loading } = useAdminConfig();
+const Footer = ({ customConfig }) => { // ← Ajouter customConfig comme prop
+  // Si customConfig est fourni (vue admin public), l'utiliser
+  // Sinon utiliser la config du contexte (vue normale)
+  const { config: contextConfig, loading: contextLoading } = useAdminConfig();
+  
+  // Priorité à customConfig s'il existe
+  const config = customConfig || contextConfig;
+  const loading = customConfig ? false : contextLoading;
 
   const siteName = config?.site_name || "SIGEF";
   const siteColorPrimary = config?.site_color_primary || "#1a56db";
@@ -26,10 +33,19 @@ const Footer = () => {
   const contactEmail = config?.contact_email || "contact@sigef.app";
   const contactPhone = config?.contact_phone || "+226 00 00 00 00 00";
   const contactAddress = config?.contact_address || "Ouagadougou, Burkina Faso";
-  const logoUrl = config?.footer_logo_url || config?.site_logo_url || null;
+  
+  // 🔥 CORRECTION : Récupérer le footer_logo (soit depuis footer_logo_url soit depuis footer_logo)
+  const logoUrl = customConfig?.footer_logo_url || 
+                  config?.footer_logo_url || 
+                  config?.footer_logo ? 
+                    (config.footer_logo.startsWith('http') ? config.footer_logo : getFileUrl("sessions", config.footer_logo)) : 
+                    config?.site_logo_url || 
+                    null;
+                    
   const socialMedia = config?.social_media || {};
   const footerBgColor = config?.footer_background_color || "";
   const footerTextColor = config?.footer_text_color || "";
+  
   const footerClasses = footerBgColor
     ? "border-t"
     : "bg-muted text-muted-foreground border-t";
@@ -41,7 +57,7 @@ const Footer = () => {
     { name: "Accueil", path: "/" },
     { name: "Connexion", path: "/login" },
     { name: "Inscription", path: "/signup" },
-    { name: "Tarifs", path: "/pricing" }, // ✅ Lien vers les tarifs ajouté
+    { name: "Tarifs", path: "/pricing" },
   ];
 
   return (

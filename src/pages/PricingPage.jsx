@@ -38,7 +38,6 @@ const PricingPage = () => {
       name: "Starter",
       priceMonth: "15 000 FCFA",
       priceYear: "150 000 FCFA",
-      oneTime: "300 000 FCFA",
       description: "Idéal pour petits centres de formation",
       features: [
         "1 administrateur",
@@ -55,10 +54,9 @@ const PricingPage = () => {
       name: "Business",
       priceMonth: "35 000 FCFA",
       priceYear: "350 000 FCFA",
-      oneTime: "700 000 FCFA",
       description: "Pour écoles et instituts professionnels",
       features: [
-        "3 administrateurs",
+        "2 administrateurs",
         "1000 apprenants",
         "Formateurs illimités",
         "Classes virtuelles",
@@ -73,10 +71,9 @@ const PricingPage = () => {
       name: "Premium",
       priceMonth: "75 000 FCFA",
       priceYear: "750 000 FCFA",
-      oneTime: "1 500 000 FCFA",
       description: "Pour universités et grandes structures",
       features: [
-        "Administrateurs illimités",
+        "2 Administrateurs",
         "Apprenants illimités",
         "Formation en ligne complète",
         "Gestion multi-campus",
@@ -89,10 +86,10 @@ const PricingPage = () => {
   ];
 
   const options = [
-    { title: "Domaine personnalisé", price: "50 000 FCFA" },
+    { title: "Domaine personnalisé", price: "100 000 FCFA" },
     { title: "Application Android", price: "500 000 FCFA" },
     { title: "Application iOS", price: "700 000 FCFA" },
-    { title: "Formation du personnel", price: "100 000 FCFA" },
+    { title: "Formation du personnel", price: "50 000 FCFA / Séance" },
     { title: "Hébergement Premium", price: "20 000 FCFA / mois" },
     { title: "Paiement Mobile Money", price: "150 000 FCFA" },
   ];
@@ -100,7 +97,7 @@ const PricingPage = () => {
   const resellerOffers = [
     { name: "Offre Revendeur - Mensuel", price: "120 000 FCFA", period: "Par mois" },
     { name: "Offre Revendeur - Annuel", price: "1 200 000 FCFA", period: "Par an", popular: true },
-    { name: "Offre Revendeur - Licence Complète", price: "3 500 000 FCFA", period: "Achat définitif" },
+    { name: "Offre Revendeur - Licence Complète", price: "5 500 000 FCFA", period: "Achat définitif" },
   ];
 
   const openPackModal = (pack) => {

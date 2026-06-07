@@ -1,4 +1,4 @@
-// src/pages/AdminDashboard.jsx
+// src/pages/AdminDashboard.jsx (version avec AdminShareLink)
 import React, { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { Navigate } from "react-router-dom";
@@ -51,6 +51,7 @@ import PaymentsManagement from "./admin/PaymentsManagement.jsx";
 import PaymentAccountsAdmin from "./admin/PaymentAccountsAdmin.jsx";
 import GeneralConfiguration from "./admin/GeneralConfiguration.jsx";
 import CycleChat from "@/components/apprenant/CycleChat.jsx";
+import { AdminShareLink } from "@/components/AdminShareLink.jsx"; // ← Import ajouté
 
 const AdminDashboard = () => {
   const { currentUser, isAdmin } = useAuth();
@@ -127,13 +128,12 @@ const AdminDashboard = () => {
         const allCycles = [...(myCycles || []), ...assignedCyclesData];
         const uniqueCycles = Array.from(
           new Map(allCycles.map((c) => [c.id, c])).values(),
-        ).filter((cycle) => cycle.is_default !== true); // ← Exclusion des cycles par défaut
+        ).filter((cycle) => cycle.is_default !== true);
 
         setAssignedCycles(uniqueCycles);
         if (uniqueCycles.length > 0) {
           setSelectedCycleId(uniqueCycles[0].id);
           setChatCycleId(uniqueCycles[0].id);
-          // Récupérer le compteur initial pour ce cycle
           await fetchUnreadMessagesCount(uniqueCycles[0].id);
         } else {
           setError(
@@ -151,7 +151,6 @@ const AdminDashboard = () => {
     loadAdminCycles();
   }, [currentUser, isAdmin]);
 
-  // Callback appelé par CycleChat quand l'utilisateur marque des messages comme lus
   const handleUnreadCountChange = (newCount) => {
     setUnreadMessagesCount(newCount);
   };
@@ -261,6 +260,10 @@ const AdminDashboard = () => {
             </DropdownMenu>
           )}
         </div>
+
+        {/* 🔥 NOUVEAU : Composant de partage de lien pour l'admin */}
+        <AdminShareLink />
+
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
@@ -371,7 +374,7 @@ const AdminDashboard = () => {
                   key={cycle.id}
                   onClick={() => {
                     setChatCycleId(cycle.id);
-                    setUnreadMessagesCount(0); // Optionnel : reset visuel avant rechargement
+                    setUnreadMessagesCount(0);
                   }}
                 >
                   {cycle.name}
@@ -398,9 +401,9 @@ const AdminDashboard = () => {
       </div>
 
       {chatOpen && chatCycleId && (
-          <div className="fixed bottom-28 right-4 z-50 w-96 h-[500px] bg-background border rounded-xl shadow-2xl">
-            <div className="flex justify-between items-center p-3 border-b bg-primary text-white rounded-t-xl">
-              <h3 className="font-semibold">
+        <div className="fixed bottom-28 right-4 z-50 w-96 h-[500px] bg-background border rounded-xl shadow-2xl">
+          <div className="flex justify-between items-center p-3 border-b bg-primary text-white rounded-t-xl">
+            <h3 className="font-semibold">
               Chat du cycle : {chatCycle?.name || "?"}
             </h3>
             <Button

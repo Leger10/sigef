@@ -1,4 +1,4 @@
-// src/pages/SignupPage.jsx - Version complète avec correction de la pré-sélection du cycle
+// src/pages/SignupPage.jsx - Version finale (pas de pré-sélection automatique)
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
@@ -20,7 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card.jsx";
-import { Shield, AlertCircle, Loader2, CheckCircle } from "lucide-react";
+import { Shield, Loader2, CheckCircle, Lock } from "lucide-react";
 import { toast } from "sonner";
 import Header from "@/components/Header.jsx";
 import Footer from "@/components/Footer.jsx";
@@ -62,6 +62,7 @@ const SignupPage = () => {
   const [savedCycleId, setSavedCycleId] = useState(null);
   const [savedCycleName, setSavedCycleName] = useState(null);
   const [savedAdminId, setSavedAdminId] = useState(null);
+  const [isCycleLocked, setIsCycleLocked] = useState(false);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -69,106 +70,89 @@ const SignupPage = () => {
     password: "",
     confirmPassword: "",
     phone: "",
-    cycle_id: "",
+    cycle_id: "", // Initialement vide, pas de pré-sélection
   });
 
-  // 1. Récupérer le cycle sauvegardé (depuis la HomePage)
+  // Lire les paramètres de l'URL (pour les liens partagés par les admins)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const cycleId = urlParams.get("cycle_id");
+    const cycleName = urlParams.get("cycle_name");
+    const adminId = urlParams.get("admin_id");
+
+    if (cycleId && cycleName) {
+      localStorage.setItem("selected_cycle_id", cycleId);
+      localStorage.setItem("selected_cycle_name", decodeURIComponent(cycleName));
+      if (adminId) localStorage.setItem("selected_admin_id", adminId);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  // Récupérer le cycle sauvegardé UNIQUEMENT s'il existe dans localStorage
   useEffect(() => {
     const savedId = localStorage.getItem("selected_cycle_id");
     const savedName = localStorage.getItem("selected_cycle_name");
     const savedAdmin = localStorage.getItem("selected_admin_id");
 
     if (savedId && savedName) {
+      // Un cycle est pré-sélectionné (lien admin)
       setSavedCycleId(savedId);
       setSavedCycleName(savedName);
       setSavedAdminId(savedAdmin);
+      setIsCycleLocked(true);
+      // On pré-remplit le formulaire avec ce cycle
+      setFormData((prev) => ({ ...prev, cycle_id: savedId }));
+    } else {
+      // Pas de cycle pré-sélectionné
+      setIsCycleLocked(false);
+      setSavedCycleId(null);
+      setSavedCycleName(null);
+      // formData.cycle_id reste vide
     }
   }, []);
 
-  // 2. Récupérer l'ID du super_admin (pour les cycles publics)
-  const getSuperAdminId = async () => {
-    const { data, error } = await supabase
-      .from("users")
-      .select("id")
-      .eq("role", "super_admin")
-      .limit(1)
-      .maybeSingle();
-    if (error || !data) return null;
-    return data.id;
-  };
-
-  // 3. Charger les cycles avec gestion robuste du cycle pré-sélectionné
+  // Charger tous les cycles actifs (toujours tous les cycles)
   useEffect(() => {
-    const fetchCycles = async () => {
+    const fetchAllCycles = async () => {
       setCyclesLoading(true);
       try {
-        let query = supabase
+        const { data, error } = await supabase
           .from("cycles")
           .select("id, name, description, admin_id, is_default")
           .eq("is_active", true)
           .order("name");
-
-        // Si aucun cycle n'est pré‑sélectionné, on filtre les cycles publics
-        if (!savedCycleId) {
-          const superAdminId = await getSuperAdminId();
-          if (superAdminId) {
-            query = query.or(`is_default.eq.true,admin_id.eq.${superAdminId}`);
-          } else {
-            query = query.eq("is_default", true);
-          }
-        }
-
-        const { data, error } = await query;
+        
         if (error) throw error;
-
+        
         let cyclesList = data || [];
-
-        // 🔧 Si un cycle est pré‑sélectionné mais absent de la liste (ex: inactif ou filtré),
-        // on le récupère manuellement pour l'ajouter
-        if (savedCycleId && !cyclesList.find((c) => c.id === savedCycleId)) {
+        
+        // Si un cycle est verrouillé mais pas dans la liste, on l'ajoute
+        if (isCycleLocked && savedCycleId && !cyclesList.find(c => c.id === savedCycleId)) {
           const { data: savedCycleData, error: cycleError } = await supabase
             .from("cycles")
             .select("id, name, description, admin_id, is_default")
             .eq("id", savedCycleId)
             .maybeSingle();
-
+          
           if (!cycleError && savedCycleData) {
             cyclesList = [savedCycleData, ...cyclesList];
-            console.log(
-              `✅ Cycle pré‑sélectionné "${savedCycleData.name}" ajouté à la liste.`,
-            );
-          } else {
-            console.warn(
-              `⚠️ Cycle pré‑sélectionné ${savedCycleId} introuvable ou inactif.`,
-            );
           }
         }
-
+        
         setCycles(cyclesList);
-
-        // Pré‑sélectionner le cycle dans le formulaire
-        const foundCycle = cyclesList.find((c) => c.id === savedCycleId);
-        if (savedCycleId && foundCycle) {
-          setFormData((prev) => ({ ...prev, cycle_id: savedCycleId }));
-          if (foundCycle.admin_id) {
-            setSavedAdminId(foundCycle.admin_id);
+        
+        if (isCycleLocked && savedCycleId) {
+          const foundCycle = cyclesList.find(c => c.id === savedCycleId);
+          if (foundCycle) {
+            toast.success(`Cycle "${savedCycleName}" pré‑sélectionné`, {
+              duration: 3000,
+              icon: <CheckCircle className="h-4 w-4" />,
+            });
+          } else {
+            toast.error(`Cycle "${savedCycleName}" non disponible.`, { duration: 4000 });
+            setIsCycleLocked(false);
+            setFormData((prev) => ({ ...prev, cycle_id: "" }));
           }
-          toast.success(`Cycle "${savedCycleName}" pré‑sélectionné`, {
-            duration: 3000,
-            icon: <CheckCircle className="h-4 w-4" />,
-          });
-          // Nettoyer localStorage après la sélection réussie
-          localStorage.removeItem("selected_cycle_id");
-          localStorage.removeItem("selected_cycle_name");
-          localStorage.removeItem("selected_admin_id");
-        } else if (savedCycleId && !foundCycle) {
-          toast.error(
-            `Cycle "${savedCycleName}" non disponible. Veuillez en sélectionner un autre.`,
-            {
-              duration: 4000,
-            },
-          );
-          // Ne pas supprimer localStorage tout de suite pour permettre un éventuel retour
         }
       } catch (error) {
         console.error("Erreur chargement cycles:", error);
@@ -177,9 +161,9 @@ const SignupPage = () => {
         setCyclesLoading(false);
       }
     };
-
-    fetchCycles();
-  }, [savedCycleId, savedCycleName]);
+    
+    fetchAllCycles();
+  }, [savedCycleId, savedCycleName, isCycleLocked]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -206,27 +190,19 @@ const SignupPage = () => {
     }
 
     setLoading(true);
-
-    // Convertir le téléphone : chaîne vide → null
-    const phoneValue =
-      formData.phone && formData.phone.trim() !== ""
-        ? formData.phone.trim()
-        : null;
+    const phoneValue = formData.phone && formData.phone.trim() !== "" ? formData.phone.trim() : null;
 
     try {
-      // 1. Créer l'utilisateur dans Supabase Auth
-      const { data: authData, error: signUpError } = await supabase.auth.signUp(
-        {
-          email: formData.email,
-          password: formData.password,
-          options: {
-            data: {
-              full_name: formData.full_name,
-              phone: phoneValue,
-            },
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.full_name,
+            phone: phoneValue,
           },
         },
-      );
+      });
 
       if (signUpError) throw signUpError;
 
@@ -235,8 +211,7 @@ const SignupPage = () => {
         let adminId = selectedCycle?.admin_id || null;
         if (!adminId && savedAdminId) adminId = savedAdminId;
 
-        // 2. Vérifier si l'utilisateur existe déjà dans la table users
-        const { data: existingUser, error: checkError } = await supabase
+        const { data: existingUser } = await supabase
           .from("users")
           .select("id")
           .eq("id", authData.user.id)
@@ -274,18 +249,8 @@ const SignupPage = () => {
 
         if (profileError) {
           console.error("Profile operation error:", profileError);
-          toast.warning(
-            "Profil partiellement créé, veuillez contacter le support si nécessaire.",
-          );
+          toast.warning("Profil partiellement créé, veuillez contacter le support.");
         } else {
-          console.log(
-            "User profile OK with cycle_id:",
-            formData.cycle_id,
-            "admin_id:",
-            adminId,
-            "phone:",
-            phoneValue,
-          );
           await logActivity(
             authData.user.id,
             "registration",
@@ -293,59 +258,43 @@ const SignupPage = () => {
             {
               cycle_id: formData.cycle_id,
               admin_id: adminId,
-              registration_method: savedCycleId
-                ? "from_cycle_selection"
-                : "direct",
-            },
+              registration_method: savedCycleId ? "from_cycle_selection" : "direct",
+            }
           );
         }
 
-        // 3. Connecter automatiquement l'utilisateur
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        });
+        localStorage.removeItem("selected_cycle_id");
+        localStorage.removeItem("selected_cycle_name");
+        localStorage.removeItem("selected_admin_id");
 
-        if (signInError) {
-          toast.success("Inscription réussie !", {
-            description: "Vous pouvez maintenant vous connecter.",
-            duration: 3000,
-          });
-          setTimeout(() => navigate("/login"), 1500);
-        } else {
-          await logActivity(
-            authData.user.id,
-            "login",
-            "Connexion automatique après inscription",
-            { login_method: "auto_after_registration" },
-          );
-          toast.success("Inscription et connexion réussies !", {
-            description: "Bienvenue sur SIGEF !",
-            duration: 3000,
-          });
-          setTimeout(() => navigate("/"), 1500);
-        }
+        toast.success("Inscription réussie ! Veuillez vous connecter.");
+        setTimeout(() => navigate("/login", { state: { email: formData.email } }), 1500);
       }
     } catch (error) {
       console.error("Erreur inscription:", error);
-      toast.error(error.message || "Erreur lors de l'inscription");
       if (error.message?.includes("already registered")) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        });
-        if (!signInError) {
-          toast.info("Vous êtes déjà inscrit, vous avez été connecté.");
-          setTimeout(() => navigate("/"), 1500);
+        const { data: existingProfile, error: profileError } = await supabase
+          .from("users")
+          .select("id")
+          .eq("email", formData.email)
+          .maybeSingle();
+
+        if (!existingProfile || profileError) {
+          toast.error(
+            "Un compte existe déjà avec cet email mais a été supprimé. Veuillez contacter l'administrateur pour restaurer votre accès ou utilisez une autre adresse email.",
+            { duration: 6000 }
+          );
+        } else {
+          toast.info("Un compte existe déjà avec cet email. Veuillez vous connecter.");
+          setTimeout(() => navigate("/login", { state: { email: formData.email } }), 1500);
         }
+      } else {
+        toast.error(error.message || "Erreur lors de l'inscription");
       }
     } finally {
       setLoading(false);
     }
   };
-
-  const selectedCycle = cycles.find((c) => c.id === formData.cycle_id);
-  const isCyclePreSelected = savedCycleId && formData.cycle_id === savedCycleId;
 
   return (
     <>
@@ -362,21 +311,11 @@ const SignupPage = () => {
                   <Shield className="h-8 w-8 text-primary" />
                 </div>
               </div>
-              <CardTitle className="text-2xl font-bold">
-                Créer un compte
-              </CardTitle>
+              <CardTitle className="text-2xl font-bold">Créer un compte</CardTitle>
               <CardDescription>
-                {savedCycleId
+                {isCycleLocked && savedCycleName
                   ? `Inscription pour le cycle "${savedCycleName}"`
                   : "Inscrivez-vous pour commencer votre formation"}
-                {selectedCycle && (
-                  <div className="mt-2 p-2 bg-primary/10 rounded-lg flex items-center justify-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-primary" />
-                    <span className="text-primary font-medium">
-                      Cycle sélectionné : {selectedCycle.name}
-                    </span>
-                  </div>
-                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -386,143 +325,143 @@ const SignupPage = () => {
                   <Input
                     id="full_name"
                     value={formData.full_name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, full_name: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                     placeholder="Ex: Traoré Karim"
                     required
                     disabled={loading}
                     className="bg-background"
                   />
                 </div>
+                
                 <div className="space-y-2">
                   <Label htmlFor="email">Email *</Label>
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="karim.traore@email.com"
                     required
                     disabled={loading}
                     className="bg-background"
                   />
                 </div>
+                
                 <div className="space-y-2">
                   <Label htmlFor="phone">Téléphone</Label>
                   <Input
                     id="phone"
                     type="tel"
                     value={formData.phone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+226 XX XX XX XX"
                     disabled={loading}
                     className="bg-background"
                   />
                 </div>
+                
+                {/* Section Cycle de formation */}
                 <div className="space-y-2">
                   <Label htmlFor="cycle">Cycle de formation *</Label>
                   {cyclesError ? (
-                    <div className="text-destructive text-sm">
-                      Erreur: {cyclesError}
-                    </div>
+                    <div className="text-destructive text-sm">Erreur: {cyclesError}</div>
                   ) : cyclesLoading ? (
                     <div className="flex items-center gap-2 p-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm text-muted-foreground">
-                        Chargement des cycles...
-                      </span>
+                      <span className="text-sm text-muted-foreground">Chargement des cycles...</span>
                     </div>
                   ) : cycles.length === 0 ? (
                     <div className="text-center p-4 bg-amber-500/10 rounded-lg text-amber-600">
                       <p className="text-sm">Aucun cycle disponible.</p>
                     </div>
+                  ) : isCycleLocked ? (
+                    // 🔒 Cas: Cycle verrouillé (venant d'un lien admin)
+                    <div className="w-full">
+                      <div className="w-full p-4 border-2 rounded-lg bg-primary/10 border-primary/40 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                            <Lock className="h-5 w-5 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-primary font-semibold uppercase tracking-wide mb-1">
+                              Cycle imposé
+                            </p>
+                            <p 
+                              className="text-foreground font-bold text-base break-words"
+                              title={savedCycleName}
+                            >
+                              {savedCycleName}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                              <Lock className="h-3 w-3" />
+                              Ce cycle vous a été recommandé par votre formateur
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <input type="hidden" name="cycle_id" value={formData.cycle_id} />
+                    </div>
                   ) : (
-                    <>
-                      <Select
-                        value={formData.cycle_id}
-                        onValueChange={(value) =>
-                          setFormData({ ...formData, cycle_id: value })
-                        }
-                        disabled={loading}
-                      >
-                        <SelectTrigger
-                          className={`bg-background ${isCyclePreSelected ? "border-primary ring-2 ring-primary/20" : ""}`}
-                        >
-                          <SelectValue placeholder="Sélectionnez votre cycle" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {cycles.map((cycle) => (
-                            <SelectItem key={cycle.id} value={cycle.id}>
-                              {cycle.name}
-                              {savedCycleId === cycle.id && " ✓ (recommandé)"}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {isCyclePreSelected && (
-                        <p className="text-xs text-primary mt-1 flex items-center gap-1">
-                          <CheckCircle className="h-3 w-3" />
-                          Cycle recommandé sélectionné
-                        </p>
-                      )}
-                      {!savedCycleId && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Ces cycles sont ouverts à tous. Après inscription,
-                          votre administrateur pourra vous associer à un centre.
-                        </p>
-                      )}
-                    </>
+                    // ✅ Cas normal: Select libre (pas de pré-sélection)
+                    <Select
+                      value={formData.cycle_id || ""}
+                      onValueChange={(value) => setFormData({ ...formData, cycle_id: value })}
+                      disabled={loading}
+                    >
+                      <SelectTrigger className="bg-gray-900 text-white [&>span]:text-white">
+                        <SelectValue placeholder="Sélectionnez votre cycle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cycles.map((cycle) => (
+                          <SelectItem key={cycle.id} value={cycle.id}>
+                            {cycle.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  
+                  {!isCycleLocked && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Sélectionnez le cycle de formation qui vous intéresse.
+                    </p>
                   )}
                 </div>
+                
                 <div className="space-y-2">
                   <Label htmlFor="password">Mot de passe *</Label>
                   <Input
                     id="password"
                     type="password"
                     value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="••••••••"
                     required
                     disabled={loading}
                     className="bg-background"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Minimum 6 caractères
-                  </p>
+                  <p className="text-xs text-muted-foreground">Minimum 6 caractères</p>
                 </div>
+                
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">
-                    Confirmer le mot de passe *
-                  </Label>
+                  <Label htmlFor="confirmPassword">Confirmer le mot de passe *</Label>
                   <Input
                     id="confirmPassword"
                     type="password"
                     value={formData.confirmPassword}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        confirmPassword: e.target.value,
-                      })
-                    }
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                     placeholder="••••••••"
                     required
                     disabled={loading}
                     className="bg-background"
                   />
                 </div>
+                
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   S'inscrire
                 </Button>
+                
                 <p className="text-center text-sm text-muted-foreground">
                   Déjà un compte ?{" "}
                   <Link to="/login" className="text-primary hover:underline">

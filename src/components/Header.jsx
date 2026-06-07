@@ -1,11 +1,12 @@
-// src/components/Header.jsx
+// src/components/Header.jsx - Version corrigée
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext.jsx";
 import { useAdminConfig } from "@/contexts/AdminConfigContext.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import { Menu, X, LogOut, User, Shield, Crown } from "lucide-react";
 import NotificationCenter from "@/components/live/NotificationCenter.jsx";
+import { Badge } from "@/components/ui/badge.jsx";
 import {
   Dialog,
   DialogContent,
@@ -14,23 +15,36 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog.jsx";
-import { supabase } from "@/lib/supabaseClient.js";
+import { supabase, getFileUrl } from "@/lib/supabaseClient.js";
 
-const Header = () => {
+const Header = ({ customConfig }) => { // ← Ajout de customConfig comme prop
+  const navigate = useNavigate();
+  const { adminId: urlAdminId } = useParams();
   const { currentUser, logout, isAuthenticated } = useAuth();
-  const { config } = useAdminConfig();
+  const { config: contextConfig } = useAdminConfig(); // ← Renommé pour éviter confusion
+  
+  // 🔥 Utiliser customConfig s'il est fourni (vue admin public), sinon contextConfig
+  const config = customConfig || contextConfig;
+  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [showRenewModal, setShowRenewModal] = useState(false);
   const [userProStatus, setUserProStatus] = useState(false);
   const [userProExpiry, setUserProExpiry] = useState(null);
-  const navigate = useNavigate();
 
+  const isSpecificAdminPage = !!urlAdminId;
+
+  // 🔥 Configuration directement depuis customConfig ou config
   const siteName = config?.site_name || "SIGEF";
-  const logoUrl = config?.site_logo_url || null;
+  const logoUrl = config?.site_logo_url || config?.site_logo ? 
+    (config.site_logo_url || getFileUrl("sessions", config.site_logo)) : 
+    null;
   const primaryColor = config?.site_color_primary || "#1a56db";
 
-  // Rafraîchir les informations PRO de l'utilisateur directement depuis Supabase
+  const homeLink = isSpecificAdminPage && urlAdminId ? `/admin/${urlAdminId}` : "/";
+  const formationsLink = isSpecificAdminPage && urlAdminId ? `/admin/${urlAdminId}#admins` : "/#admins";
+  const fonctionnalitesLink = isSpecificAdminPage && urlAdminId ? `/admin/${urlAdminId}#features` : "/#features";
+
   const fetchUserProStatus = async () => {
     if (!currentUser?.id) return;
     try {
@@ -43,7 +57,6 @@ const Header = () => {
         setUserProStatus(data.pro_status === true);
         setUserProExpiry(data.pro_expiry);
       } else {
-        // Fallback sur currentUser
         setUserProStatus(currentUser?.pro_status === true);
         setUserProExpiry(currentUser?.pro_expiry);
       }
@@ -56,7 +69,6 @@ const Header = () => {
 
   useEffect(() => {
     fetchUserProStatus();
-    // Optionnel : rafraîchir toutes les minutes
     const interval = setInterval(fetchUserProStatus, 60000);
     return () => clearInterval(interval);
   }, [currentUser?.id]);
@@ -67,14 +79,11 @@ const Header = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Vérifier si l'utilisateur a un abonnement PRO actif (basé sur les données fraîches)
-  const isProActive =
-    userProStatus === true &&
-    (!userProExpiry || new Date(userProExpiry) > new Date());
+  const isProActive = userProStatus === true && (!userProExpiry || new Date(userProExpiry) > new Date());
 
   const handleLogout = async () => {
     await logout();
-    navigate("/");
+    navigate(homeLink);
     setIsMenuOpen(false);
   };
 
@@ -107,9 +116,9 @@ const Header = () => {
   const closeMenu = () => setIsMenuOpen(false);
 
   const navItems = [
-    { label: "Accueil", href: "/" },
-    { label: "Formations", href: "/#admins" },
-    { label: "Fonctionnalités", href: "/#features" },
+    { label: "Accueil", href: homeLink },
+    { label: "Formations", href: formationsLink },
+    { label: "Fonctionnalités", href: fonctionnalitesLink },
   ];
 
   return (
@@ -123,8 +132,7 @@ const Header = () => {
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link to="/" className="flex items-center space-x-2">
+            <Link to={homeLink} className="flex items-center space-x-2">
               {logoUrl ? (
                 <img src={logoUrl} alt={siteName} className="h-8 w-auto" />
               ) : (
@@ -133,10 +141,11 @@ const Header = () => {
               <span className="font-bold text-xl hidden sm:inline">
                 {siteName}
               </span>
-              <span className="font-bold text-lg sm:hidden">PAP</span>
+              <span className="font-bold text-lg sm:hidden">
+                {siteName.substring(0, 3)}
+              </span>
             </Link>
 
-            {/* Navigation Desktop */}
             <nav className="hidden md:flex items-center space-x-6">
               {navItems.map((item) => (
                 <Link
@@ -156,7 +165,6 @@ const Header = () => {
               </button>
             </nav>
 
-            {/* Zone droite : Notifications + Auth Buttons */}
             <div className="flex items-center space-x-4">
               <NotificationCenter />
 
@@ -194,7 +202,6 @@ const Header = () => {
                 )}
               </div>
 
-              {/* Menu hamburger mobile */}
               <button
                 onClick={() => setIsMenuOpen(true)}
                 className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
@@ -207,7 +214,7 @@ const Header = () => {
         </div>
       </header>
 
-      {/* Overlay + Drawer (menu mobile premium) */}
+      {/* Menu mobile - identique à avant */}
       <div
         className={`fixed inset-0 z-50 transition-all duration-300 ${
           isMenuOpen ? "visible" : "invisible"
@@ -309,7 +316,6 @@ const Header = () => {
         </div>
       </div>
 
-      {/* Modal de confirmation pour renouvellement PRO */}
       <Dialog open={showRenewModal} onOpenChange={setShowRenewModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -318,7 +324,7 @@ const Header = () => {
               Vous êtes déjà abonné PRO
             </DialogTitle>
             <DialogDescription>
-              Votre abonnement est actuellement actif. Souhaitez‑vous le
+              Votre abonnement est actuellement actif. Souhaitez-vous le
               renouveler avant son expiration&nbsp;?
             </DialogDescription>
           </DialogHeader>

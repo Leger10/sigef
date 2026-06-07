@@ -183,7 +183,72 @@ const UsersManagement = ({ initialRoleFilter = 'all' }) => {
     }
   };
 
-  // Actions
+  // 🔥 Supprimer l'utilisateur de l'authentification via Edge Function
+  const deleteUserFromAuth = async (userId) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({ userId })
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erreur lors de la suppression dans Auth');
+      }
+      return true;
+    } catch (error) {
+      console.error('Error deleting user from auth:', error);
+      throw error;
+    }
+  };
+
+  // 🔥 NOUVELLE FONCTION : Supprimer les dépendances d’un utilisateur (clés étrangères)
+  const deleteUserDependencies = async (userId) => {
+    const dependentTables = [
+      'payment_methods',
+      'transactions',
+      'activity_logs',
+      'notifications',
+      'subscriptions',
+    ];
+
+    for (const table of dependentTables) {
+      try {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('user_id', userId);
+        if (error && error.code !== 'PGRST116') {
+          console.warn(`Erreur lors de la suppression dans ${table}:`, error);
+        }
+      } catch (err) {
+        console.warn(`Erreur dans ${table}:`, err);
+      }
+    }
+
+    // Cas particulier pour la table messages (sender_id ou receiver_id)
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+      if (error && error.code !== 'PGRST116') console.warn('Erreur messages:', error);
+    } catch (err) { console.warn(err); }
+
+    // Cas particulier pour admin_cycles (admin_id)
+    try {
+      const { error } = await supabase
+        .from('admin_cycles')
+        .delete()
+        .eq('admin_id', userId);
+      if (error && error.code !== 'PGRST116') console.warn('Erreur admin_cycles:', error);
+    } catch (err) { console.warn(err); }
+  };
+
+  // 🔥 MODIFICATION : handleDelete supprime les dépendances avant l'utilisateur
   const handleDelete = async () => {
     if (!deleteDialog.user) return;
 
@@ -208,8 +273,7 @@ const UsersManagement = ({ initialRoleFilter = 'all' }) => {
       }
     }
 
-    // 3. (Optionnel) Protection supplémentaire : empêcher qu'un autre super-admin supprime le root
-    // (Déjà couvert par le cas précédent car le root est super_admin)
+    // 3. Protection supplémentaire : empêcher qu'un autre super-admin supprime le root
     if (userToDelete.email?.toLowerCase().trim() === rootEmail && !isRoot) {
       toast.error('Vous ne pouvez pas supprimer le super administrateur principal.');
       setDeleteDialog({ isOpen: false, user: null });
@@ -217,16 +281,24 @@ const UsersManagement = ({ initialRoleFilter = 'all' }) => {
     }
 
     setUpdating(true);
-    try {
+   try {
+      // 1. Supprimer de la table users (ON DELETE CASCADE gère les dépendances)
       const { error } = await supabase.from('users').delete().eq('id', userToDelete.id);
       if (error) throw error;
-      toast.success('Utilisateur supprimé');
+
+      // 2. Supprimer de l’auth via Edge Function (non bloquant)
+      try {
+        await deleteUserFromAuth(userToDelete.id);
+      } catch (authError) {
+        console.warn("L'utilisateur a été supprimé de la base mais pas de l'authentification:", authError);
+      }
+
+      toast.success('Utilisateur supprimé définitivement.');
       await fetchUsers();
-      await loadAdmins();
       setDeleteDialog({ isOpen: false, user: null });
     } catch (err) {
       console.error(err);
-      toast.error('Erreur lors de la suppression');
+      toast.error(err.message || 'Erreur lors de la suppression');
     } finally {
       setUpdating(false);
     }
@@ -672,7 +744,7 @@ const UsersManagement = ({ initialRoleFilter = 'all' }) => {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Édition */}
+      {/* Dialog Édition (commenté dans l'UI, mais la fonction existe) */}
       <Dialog open={editDialog.isOpen} onOpenChange={open => !open && setEditDialog({ isOpen: false, user: null })}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Modifier l'utilisateur</DialogTitle><DialogDescription>Modifier les informations de {editDialog.user?.full_name || editDialog.user?.email}</DialogDescription></DialogHeader>

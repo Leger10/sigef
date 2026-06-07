@@ -1,6 +1,6 @@
-// src/pages/LoginPage.jsx - Version simplifiée
+// src/pages/LoginPage.jsx
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/contexts/AuthContext.jsx";
 import { supabase } from "@/lib/supabaseClient.js";
@@ -18,7 +18,6 @@ import { Shield, Loader2 } from "lucide-react";
 import Header from "@/components/Header.jsx";
 import Footer from "@/components/Footer.jsx";
 
-// Fonction pour logger les activités
 const logActivity = async (userId, action, details, metadata = {}) => {
   try {
     const { data: userData } = await supabase
@@ -50,7 +49,12 @@ const logActivity = async (userId, action, details, metadata = {}) => {
 const LoginPage = () => {
   const { login, isAuthenticated, initialLoading } = useAuth();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ email: "", password: "" });
+  const location = useLocation();
+
+  // Récupérer l'email passé depuis SignupPage (ou autre)
+  const prefillEmail = location.state?.email || "";
+
+  const [formData, setFormData] = useState({ email: prefillEmail, password: "" });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {

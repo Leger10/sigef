@@ -112,6 +112,7 @@ const AppContent = () => {
       <Routes>
         {/* ========== PUBLIC ROUTES ========== */}
         <Route path="/" element={<HomePage />} />
+        <Route path="/admin/:adminId" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/formateur/:formateurId" element={<FormatorPage />} />
