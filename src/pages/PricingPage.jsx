@@ -40,7 +40,6 @@ const PricingPage = () => {
       priceYear: "150 000 FCFA",
       description: "Idéal pour petits centres de formation",
       features: [
-        "1 administrateur",
         "100 apprenants",
         "10 formateurs",
         "Gestion des formations",
@@ -56,12 +55,13 @@ const PricingPage = () => {
       priceYear: "350 000 FCFA",
       description: "Pour écoles et instituts professionnels",
       features: [
-        "2 administrateurs",
+       
         "1000 apprenants",
         "Formateurs illimités",
         "Classes virtuelles",
         "Examens et évaluations",
-        "Sous-domaine personnalisé",
+         "Support Vip",
+          "Assistance 24H/24",
       ],
       popular: true,
       color: "from-purple-600 to-pink-500",
@@ -73,12 +73,16 @@ const PricingPage = () => {
       priceYear: "750 000 FCFA",
       description: "Pour universités et grandes structures",
       features: [
-        "2 Administrateurs",
+       
         "Apprenants illimités",
         "Formation en ligne complète",
         "Gestion multi-campus",
         "Rapports avancés",
-        "API & intégrations",
+        "Formateurs illimités",
+        "Classes virtuelles",
+        "Examens et évaluations",
+         "Support Vip",
+          "Assistance 24H/24",
       ],
       color: "from-amber-600 to-orange-500",
       icon: Crown,
