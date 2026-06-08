@@ -1,4 +1,4 @@
-// src/pages/HomePage.jsx - Version complète corrigée
+// src/pages/HomePage.jsx - Version avec carrousel à défilement automatique
 import React, {
   useState,
   useEffect,
@@ -47,6 +47,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar.jsx";
+import { toast } from "sonner";
 
 // Mapping statique des icônes pour les fonctionnalités marketing
 const iconMap = {
@@ -70,6 +71,227 @@ const iconMap = {
 
 const Header = lazy(() => import("@/components/Header.jsx"));
 const Footer = lazy(() => import("@/components/Footer.jsx"));
+
+// Composant pour le carrousel à défilement automatique
+// Composant pour le carrousel à défilement automatique (optimisé mobile)
+const AutoScrollCarousel = ({ testimonials }) => {
+  const scrollContainerRef = useRef(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const scrollIntervalRef = useRef(null);
+  const autoScrollTimeoutRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Détecter si c'est un mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Fonction pour faire défiler automatiquement
+  const startAutoScroll = () => {
+    if (scrollIntervalRef.current) clearInterval(scrollIntervalRef.current);
+    
+    scrollIntervalRef.current = setInterval(() => {
+      if (!isPaused && scrollContainerRef.current) {
+        const container = scrollContainerRef.current;
+        // Vitesse adaptée selon l'appareil
+        const scrollAmount = isMobile ? 2 : 1.5;
+        
+        if (container.scrollLeft + container.clientWidth >= container.scrollWidth - 5) {
+          // Revenir au premier témoignage en douceur
+          container.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          container.scrollLeft += scrollAmount;
+        }
+      }
+    }, isMobile ? 25 : 30); // Intervalle plus rapide sur mobile pour fluidité
+  };
+
+  // Démarrer le défilement automatique
+  useEffect(() => {
+    startAutoScroll();
+    return () => {
+      if (scrollIntervalRef.current) clearInterval(scrollIntervalRef.current);
+      if (autoScrollTimeoutRef.current) clearTimeout(autoScrollTimeoutRef.current);
+    };
+  }, [isMobile]);
+
+  // Redémarrer après pause
+  useEffect(() => {
+    if (!isPaused) {
+      if (autoScrollTimeoutRef.current) clearTimeout(autoScrollTimeoutRef.current);
+      autoScrollTimeoutRef.current = setTimeout(() => {
+        startAutoScroll();
+      }, 3000);
+    } else if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+  }, [isPaused]);
+
+  const handleManualNavigation = () => {
+    setIsPaused(true);
+  };
+
+  const scrollLeft = () => {
+    if (scrollContainerRef.current) {
+      handleManualNavigation();
+      const scrollDistance = isMobile ? window.innerWidth - 50 : 380;
+      scrollContainerRef.current.scrollBy({ left: -scrollDistance, behavior: 'smooth' });
+    }
+  };
+
+  const scrollRight = () => {
+    if (scrollContainerRef.current) {
+      handleManualNavigation();
+      const scrollDistance = isMobile ? window.innerWidth - 50 : 380;
+      scrollContainerRef.current.scrollBy({ left: scrollDistance, behavior: 'smooth' });
+    }
+  };
+
+  // Gestion du swipe sur mobile
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    const handleTouchStart = (e) => {
+      touchStartX = e.touches[0].clientX;
+      setIsPaused(true); // Pause au toucher
+    };
+
+    const handleTouchMove = (e) => {
+      touchEndX = e.touches[0].clientX;
+    };
+
+    const handleTouchEnd = () => {
+      if (touchStartX - touchEndX > 50) {
+        // Swipe gauche -> suivant
+        scrollRight();
+      } else if (touchEndX - touchStartX > 50) {
+        // Swipe droite -> précédent
+        scrollLeft();
+      }
+    };
+
+    container.addEventListener('touchstart', handleTouchStart);
+    container.addEventListener('touchmove', handleTouchMove);
+    container.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, []);
+
+  return (
+    <div className="relative group">
+      {/* Bouton gauche - visible sur desktop, caché sur mobile (préférer le swipe) */}
+      {!isMobile && (
+        <button
+          onClick={scrollLeft}
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white/95 dark:bg-gray-800/95 rounded-full p-3 shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 hover:bg-white dark:hover:bg-gray-700"
+          aria-label="Témoignage précédent"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+      )}
+
+    
+
+      {/* Conteneur défilant */}
+      <div
+        ref={scrollContainerRef}
+        className="overflow-x-auto scroll-smooth snap-mandatory snap-x flex gap-4 md:gap-6 pb-4"
+        style={{ 
+          scrollbarWidth: "none", 
+          msOverflowStyle: "none",
+          WebkitOverflowScrolling: "touch"
+        }}
+      >
+        <style>{`
+          .overflow-x-auto::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+        
+        {testimonials.map((testimonial, idx) => (
+          <div
+            key={idx}
+            className="snap-start shrink-0 w-[85vw] sm:w-80 md:w-96 bg-card rounded-xl p-4 sm:p-6 shadow-lg border hover:shadow-2xl transition-all testimonial-card"
+            style={{ animationDelay: `${idx * 0.1}s` }}
+          >
+            <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-primary font-bold text-lg sm:text-xl shadow-md">
+                {testimonial.avatar || testimonial.name.charAt(0)}
+              </div>
+              <div>
+                <p className="font-semibold text-base sm:text-lg">{testimonial.name}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">{testimonial.role}</p>
+              </div>
+            </div>
+            <div className="flex mb-2 sm:mb-3">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className={`w-4 h-4 sm:w-5 sm:h-5 ${i < testimonial.rating ? "fill-yellow-500 text-yellow-500" : "text-gray-300"}`}
+                />
+              ))}
+            </div>
+            <p className="text-sm sm:text-base text-muted-foreground italic leading-relaxed line-clamp-4">
+              "{testimonial.content}"
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Bouton droit - visible sur desktop, caché sur mobile */}
+      {!isMobile && (
+        <button
+          onClick={scrollRight}
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-white/95 dark:bg-gray-800/95 rounded-full p-3 shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110 hover:bg-white dark:hover:bg-gray-700"
+          aria-label="Témoignage suivant"
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Indicateurs de progression - responsive */}
+      <div className="flex justify-center gap-1.5 sm:gap-2 mt-6 sm:mt-8">
+        {testimonials.map((_, idx) => (
+          <button
+            key={idx}
+            className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-primary/30 hover:bg-primary transition-all duration-300 hover:scale-150"
+            onClick={() => {
+              if (scrollContainerRef.current) {
+                handleManualNavigation();
+                const cardWidth = scrollContainerRef.current.children[0]?.offsetWidth || (isMobile ? window.innerWidth - 40 : 350);
+                scrollContainerRef.current.scrollTo({
+                  left: idx * (cardWidth + (isMobile ? 16 : 24)),
+                  behavior: 'smooth'
+                });
+              }
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Indice pour swipe sur mobile */}
+      {isMobile && (
+        <p className="text-center text-xs text-muted-foreground mt-4">
+          ← Glissez pour voir plus de témoignages →
+        </p>
+      )}
+    </div>
+  );
+};
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -97,6 +319,16 @@ const HomePage = () => {
     testimonials: false,
   });
 
+  // Animation du badge
+  const [badgeVisible, setBadgeVisible] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBadgeVisible(prev => !prev);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Références
   const testimonialsRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -122,7 +354,6 @@ const HomePage = () => {
         setTargetAdminId(urlAdminId);
         
         try {
-          // Vérifier que l'admin existe
           const { data: userData, error: userError } = await supabase
             .from("users")
             .select("id, full_name, email, avatar_url, bio, specialty, role")
@@ -135,7 +366,6 @@ const HomePage = () => {
             return;
           }
           
-          // Récupérer la config personnalisée
           const { data: configData, error: configError } = await supabase
             .from("admin_config")
             .select("*")
@@ -391,19 +621,6 @@ const HomePage = () => {
     }
   };
 
-  const scrollTestimonials = (direction) => {
-    if (scrollContainerRef.current) {
-      const scrollAmount = 340;
-      const newScrollLeft =
-        scrollContainerRef.current.scrollLeft +
-        (direction === "left" ? -scrollAmount : scrollAmount);
-      scrollContainerRef.current.scrollTo({
-        left: newScrollLeft,
-        behavior: "smooth",
-      });
-    }
-  };
-
   // Déterminer la config active et les données à afficher
   const activeConfig = isAdminPublicView ? adminCustomConfig : defaultConfig;
   const configLoading = isAdminPublicView ? false : defaultConfigLoading;
@@ -463,16 +680,65 @@ const HomePage = () => {
       </Helmet>
       <style>{`
         :root { --primary-custom: ${primaryColor}; --secondary-custom: ${secondaryColor}; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeInLeft { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes fadeInRight { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.3); } 50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.6); } }
-        .animate-fadeInUp { animation: fadeInUp 0.6s ease-out forwards; }
-        .animate-fadeInLeft { animation: fadeInLeft 0.6s ease-out forwards; }
-        .animate-fadeInRight { animation: fadeInRight 0.6s ease-out forwards; }
-        .animate-scaleIn { animation: scaleIn 0.5s ease-out forwards; }
-        .animate-pulse-glow { animation: pulse-glow 2s infinite; }
+        
+        /* Animations élégantes */
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(40px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes fadeInLeft {
+          from { opacity: 0; transform: translateX(-40px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        
+        @keyframes fadeInRight {
+          from { opacity: 0; transform: translateX(40px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        
+        @keyframes scaleIn {
+          from { opacity: 0; transform: scale(0.9); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+        }
+        
+        @keyframes pulseGlow {
+          0%, 100% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.3); }
+          50% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.6); }
+        }
+        
+        @keyframes bounceIn {
+          0% { opacity: 0; transform: scale(0.3); }
+          50% { opacity: 1; transform: scale(1.05); }
+          70% { transform: scale(0.9); }
+          100% { transform: scale(1); }
+        }
+        
+        @keyframes slideInFromBottom {
+          from { opacity: 0; transform: translateY(60px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes blinkSoft {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.3; transform: scale(0.98); }
+        }
+        
+        .animate-fadeInUp { animation: fadeInUp 0.8s ease-out forwards; }
+        .animate-fadeInLeft { animation: fadeInLeft 0.8s ease-out forwards; }
+        .animate-fadeInRight { animation: fadeInRight 0.8s ease-out forwards; }
+        .animate-scaleIn { animation: scaleIn 0.6s ease-out forwards; }
+        .animate-float { animation: float 4s ease-in-out infinite; }
+        .animate-pulse-glow { animation: pulseGlow 2s infinite; }
+        .animate-bounceIn { animation: bounceIn 0.6s ease-out forwards; }
+        .animate-slideInFromBottom { animation: slideInFromBottom 0.8s ease-out forwards; }
+        .animate-blinkSoft { animation: blinkSoft 4s ease-in-out infinite; }
+        
         .delay-100 { animation-delay: 0.1s; }
         .delay-200 { animation-delay: 0.2s; }
         .delay-300 { animation-delay: 0.3s; }
@@ -480,15 +746,27 @@ const HomePage = () => {
         .delay-500 { animation-delay: 0.5s; }
         .delay-600 { animation-delay: 0.6s; }
         .delay-700 { animation-delay: 0.7s; }
+        .delay-800 { animation-delay: 0.8s; }
+        
         .hover-lift { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-        .hover-lift:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.15); }
+        .hover-lift:hover { transform: translateY(-5px) scale(1.02); box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.25); }
+        
         .gradient-text { background: linear-gradient(135deg, ${primaryColor}, ${secondaryColor}); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        
         .admin-card { transition: all 0.3s ease; }
-        .admin-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.2); }
-        .cycle-item { transition: all 0.2s ease; cursor: pointer; }
-        .cycle-item:hover { transform: translateX(5px); border-color: ${primaryColor}; }
+        .admin-card:hover { transform: translateY(-8px) scale(1.02); box-shadow: 0 25px 30px -12px rgba(0, 0, 0, 0.3); }
+        
+        .cycle-item { transition: all 0.3s ease; cursor: pointer; }
+        .cycle-item:hover { transform: translateX(8px); border-color: ${primaryColor}; background: ${primaryColor}10; }
+        
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .feature-card { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .feature-card:hover { transform: translateY(-8px) scale(1.05); }
+        
+        .testimonial-card { transition: all 0.3s ease; }
+        .testimonial-card:hover { transform: translateY(-5px) scale(1.02); box-shadow: 0 20px 30px -15px rgba(0, 0, 0, 0.2); }
       `}</style>
 
       <div className="min-h-screen flex flex-col">
@@ -497,7 +775,7 @@ const HomePage = () => {
         </Suspense>
 
         {isAuthenticated && currentUser?.role === "super_admin" && (
-          <div className="fixed bottom-6 right-6 z-50 animate-fadeInUp">
+          <div className="fixed bottom-6 right-6 z-50 animate-bounceIn">
             <Button
               size="lg"
               className="shadow-xl rounded-full px-6 gap-2 hover-lift"
@@ -514,7 +792,7 @@ const HomePage = () => {
         {showScrollTop && (
           <button
             onClick={scrollToTop}
-            className="fixed bottom-6 left-6 z-50 bg-primary text-primary-foreground p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 animate-fadeInUp hover-lift"
+            className="fixed bottom-6 left-6 z-50 bg-primary text-primary-foreground p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 animate-bounceIn hover-lift"
             style={{ backgroundColor: primaryColor }}
           >
             <ChevronUp className="w-5 h-5" />
@@ -532,7 +810,7 @@ const HomePage = () => {
               <img
                 src={bannerUrl}
                 alt="Bannière"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover animate-scaleIn"
                 loading="eager"
                 onError={(e) => {
                   e.target.style.display = "none";
@@ -542,7 +820,7 @@ const HomePage = () => {
               />
             ) : (
               <div
-                className="w-full h-full"
+                className="w-full h-full animate-scaleIn"
                 style={{
                   backgroundColor: primaryColor,
                   backgroundImage: `radial-gradient(circle at 10% 20%, ${primaryColor}dd, ${secondaryColor}dd)`,
@@ -555,12 +833,13 @@ const HomePage = () => {
             <div className="max-w-3xl">
               {logoUrl && (
                 <div className={`mb-6 ${animated.hero ? "animate-fadeInUp delay-100" : "opacity-100"}`}>
-                  <img src={logoUrl} alt={siteName} className="h-16 w-auto object-contain" loading="eager" />
+                  <img src={logoUrl} alt={siteName} className="h-16 w-auto object-contain animate-float" loading="eager" />
                 </div>
               )}
+              
               <div className={`${animated.hero ? "animate-fadeInUp delay-100" : "opacity-100"}`}>
                 <Badge
-                  className="mb-6 text-sm sm:text-base py-1 px-3 font-bold"
+                  className={`mb-6 text-sm sm:text-base py-1 px-3 font-bold transition-all duration-1000 ease-in-out animate-blinkSoft`}
                   style={{
                     backgroundColor: activeConfig?.hero_badge_bg_color || primaryColor + "20",
                     color: activeConfig?.hero_badge_text_color || primaryColor,
@@ -570,15 +849,18 @@ const HomePage = () => {
                   {activeConfig?.hero_badge_text || "Plateforme SaaS Multi-Tenant de Gestion Académique et Formation en Ligne"}
                 </Badge>
               </div>
+              
               <h1 className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight ${animated.hero ? "animate-fadeInUp delay-300" : "opacity-100"}`}>
                 {siteName}
               </h1>
+              
               <p className={`text-lg sm:text-xl md:text-2xl text-muted-foreground mb-8 sm:mb-10 leading-relaxed max-w-2xl ${animated.hero ? "animate-fadeInUp delay-400" : "opacity-100"}`}>
                 {siteDescription}
               </p>
+              
               <div className={`flex flex-col sm:flex-row gap-4 ${animated.hero ? "animate-fadeInUp delay-500" : "opacity-100"}`}>
                 {isAuthenticated ? (
-                  <Button className="min-h-12 text-base w-full sm:w-auto px-8 hover-lift" asChild style={{ backgroundColor: primaryColor, color: "#fff" }}>
+                  <Button className="min-h-12 text-base w-full sm:w-auto px-8 hover-lift animate-pulse-glow" asChild style={{ backgroundColor: primaryColor, color: "#fff" }}>
                     <Link to="/dashboard" className="flex items-center justify-center gap-2">
                       Aller au tableau de bord <ArrowRight className="h-5 w-5" />
                     </Link>
@@ -608,19 +890,19 @@ const HomePage = () => {
         </section>
 
         {/* Section Catégories */}
-        <section className="py-8 px-4 bg-background border-b">
+        <section className="py-8 px-4 bg-background border-b animate-slideInFromBottom">
           <div className="container mx-auto max-w-7xl">
             <div className="flex flex-wrap justify-center gap-4">
-              {categories.map((cat) => {
+              {categories.map((cat, idx) => {
                 const Icon = cat.icon;
                 const isActive = selectedCategory === cat.id;
                 return (
                   <Button
                     key={cat.id}
                     variant={isActive ? "default" : "outline"}
-                    className={`gap-2 rounded-full px-6 transition-all duration-300 ${
+                    className={`gap-2 rounded-full px-6 transition-all duration-300 hover-lift ${
                       isActive ? `bg-gradient-to-r ${cat.color} text-white shadow-lg scale-105` : ""
-                    }`}
+                    } animate-fadeInUp delay-${idx * 100}`}
                     onClick={() => setSelectedCategory(cat.id)}
                   >
                     <Icon className="w-4 h-4" />
@@ -638,20 +920,20 @@ const HomePage = () => {
             <div className="text-center mb-12 sm:mb-16">
               {isAuthenticated && displayAdmins.length === 1 ? (
                 <>
-                  <h2 className="mb-4 text-3xl font-bold text-foreground">Votre formateur</h2>
-                  <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
+                  <h2 className="mb-4 text-3xl font-bold text-foreground animate-fadeInUp">Votre formateur</h2>
+                  <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto animate-fadeInUp delay-100">
                     Voici le formateur qui vous accompagne. Sélectionnez votre cycle de formation.
                   </p>
                 </>
               ) : (
                 <>
-                  <h2 className="mb-4 text-3xl font-bold text-foreground">
+                  <h2 className="mb-4 text-3xl font-bold text-foreground animate-fadeInUp">
                     {selectedCategory === "all" && "Tous nos formateurs"}
                     {selectedCategory === "direct" && "Formateurs Concours direct"}
                     {selectedCategory === "professional" && "Formateurs Concours professionnel"}
                     {selectedCategory === "other" && "Formateurs Autres formations"}
                   </h2>
-                  <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
+                  <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto animate-fadeInUp delay-100">
                     {selectedCategory === "all" && "Découvrez nos formateurs experts et sélectionnez le cycle qui correspond à vos objectifs"}
                     {selectedCategory === "direct" && "Préparez-vous efficacement aux concours directs"}
                     {selectedCategory === "professional" && "Spécialistes des concours professionnels"}
@@ -665,7 +947,7 @@ const HomePage = () => {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : displayAdmins.length === 0 ? (
-              <div className="text-center py-12 bg-muted/30 rounded-2xl">
+              <div className="text-center py-12 bg-muted/30 rounded-2xl animate-scaleIn">
                 <UserCircle className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
                 <p className="text-lg font-medium">Aucun formateur disponible dans cette catégorie</p>
                 <p className="text-sm text-muted-foreground mt-1">Revenez plus tard ou explorez d'autres catégories</p>
@@ -675,7 +957,7 @@ const HomePage = () => {
                 {displayAdmins.map((admin, index) => (
                   <Card key={admin.id} className={`admin-card overflow-hidden ${animated.admins ? `animate-fadeInUp delay-${((index % 6) + 1) * 100}` : "opacity-100"}`}>
                     <div className="bg-gradient-to-r from-primary/10 to-secondary/10 p-6 text-center">
-                      <Avatar className="w-24 h-24 mx-auto mb-4 ring-4 ring-background">
+                      <Avatar className="w-24 h-24 mx-auto mb-4 ring-4 ring-background hover-scale">
                         <AvatarImage src={admin.display_avatar_url} />
                         <AvatarFallback className="text-2xl bg-primary/20 text-primary">
                           {admin.display_name?.charAt(0) || "A"}
@@ -728,23 +1010,23 @@ const HomePage = () => {
           <section ref={marketingRef} id="marketing" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5">
             <div className="container mx-auto max-w-7xl">
               <div className="text-center mb-12 sm:mb-16">
-               <Badge 
-  className="mb-5 text-sm sm:text-base py-1 px-3 text-white" 
-  style={{ 
-    backgroundColor: secondaryColor,
-    borderColor: secondaryColor
-  }}
->
-  <Sparkles className="w-3 h-3 mr-1 inline" /> 
-  Pourquoi passer à PRO ?
-</Badge>
-              <h2 className="mb-4 text-3xl md:text-4xl font-bold">
-  <span className="text-gray-200">Tout ce dont vous avez besoin pour</span>{" "}
-  <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 font-bold drop-shadow-lg">
-    réussir
-  </span>
-</h2>
-                <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
+                <Badge 
+                  className="mb-5 text-sm sm:text-base py-1 px-3 text-white animate-scaleIn" 
+                  style={{ 
+                    backgroundColor: secondaryColor,
+                    borderColor: secondaryColor
+                  }}
+                >
+                  <Sparkles className="w-3 h-3 mr-1 inline" /> 
+                  Pourquoi passer à PRO ?
+                </Badge>
+                <h2 className="mb-4 text-3xl md:text-4xl font-bold animate-fadeInUp">
+                  <span className="text-gray-200">Tout ce dont vous avez besoin pour</span>{" "}
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 font-bold drop-shadow-lg animate-float">
+                    réussir
+                  </span>
+                </h2>
+                <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto animate-fadeInUp delay-100">
                   Découvrez les avantages exclusifs réservés aux abonnés PRO
                 </p>
               </div>
@@ -752,14 +1034,14 @@ const HomePage = () => {
                 {marketingFeatures.map((feature, idx) => {
                   const IconComponent = getIcon(feature.icon);
                   return (
-                    <Card key={idx} className={`group hover:shadow-xl transition-all duration-500 hover-lift overflow-hidden ${animated.marketing ? `animate-fadeInUp delay-${((idx % 8) + 1) * 100}` : "opacity-100"}`}>
-                      <div className={`h-1 w-full bg-gradient-to-r ${feature.color || "from-blue-500 to-cyan-500"}`} />
+                    <Card key={idx} className={`group hover:shadow-xl transition-all duration-500 hover-lift overflow-hidden feature-card ${animated.marketing ? `animate-fadeInUp delay-${((idx % 8) + 1) * 100}` : "opacity-100"}`}>
+                      <div className={`h-1 w-full bg-gradient-to-r ${feature.color || "from-blue-500 to-cyan-500"} group-hover:h-1.5 transition-all duration-300`} />
                       <CardContent className="pt-6 text-center">
-                        <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br ${feature.color || "from-blue-500 to-cyan-500"} flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                        <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br ${feature.color || "from-blue-500 to-cyan-500"} flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300 group-hover:rotate-3`}>
                           {IconComponent}
                         </div>
                         <Badge className="mb-3" variant="secondary">{feature.badge}</Badge>
-                        <h3 className="text-xl font-bold mb-2">{feature.title}</h3>
+                        <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{feature.title}</h3>
                         <p className="text-sm text-muted-foreground">{feature.description}</p>
                       </CardContent>
                     </Card>
@@ -767,14 +1049,14 @@ const HomePage = () => {
                 })}
               </div>
               {offer.enabled && (
-                <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 p-8 text-center text-white ${animated.marketing ? "animate-scaleIn delay-600" : "opacity-100"}`}>
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
-                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12" />
-                  <Crown className="h-12 w-12 mx-auto mb-4 text-yellow-200" />
+                <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 p-8 text-center text-white ${animated.marketing ? "animate-scaleIn delay-600" : "opacity-100"} hover-lift`}>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 animate-pulse-glow" />
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12 animate-pulse-glow" />
+                  <Crown className="h-12 w-12 mx-auto mb-4 text-yellow-200 animate-float" />
                   <h3 className="text-2xl md:text-3xl font-bold mb-2">{offer.title}</h3>
                   <p className="text-lg mb-4 opacity-90">{offer.subtitle}</p>
-                  <Button size="lg" className="bg-white text-amber-600 hover:bg-gray-100 shadow-lg" asChild>
-                    <Link to="/subscription">{offer.buttonText} <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  <Button size="lg" className="bg-white text-amber-600 hover:bg-gray-100 shadow-lg hover-lift" asChild>
+                    <Link to="/subscription">{offer.buttonText} <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" /></Link>
                   </Button>
                   <p className="text-xs mt-4 opacity-75">Offre valable pour tout nouvel abonnement</p>
                 </div>
@@ -788,27 +1070,27 @@ const HomePage = () => {
           <section ref={featuresRef} id="features" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-muted/50 border-y">
             <div className="container mx-auto max-w-7xl">
               <div className="text-center mb-12 sm:mb-16">
-                <h2 className="mb-4 text-3xl font-bold text-foreground">Une plateforme complète pour réussir</h2>
-                <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
+                <h2 className="mb-4 text-3xl font-bold text-foreground animate-fadeInUp">Une plateforme complète pour réussir</h2>
+                <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto animate-fadeInUp delay-100">
                   Tous les outils et ressources nécessaires pour une préparation efficace
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="text-center p-6 rounded-2xl bg-card border border-primary/10">
+                <div className="text-center p-6 rounded-2xl bg-card border border-primary/10 hover-lift feature-card animate-fadeInUp delay-200">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
                     <BookOpen className="h-8 w-8 text-primary" />
                   </div>
                   <h3 className="text-xl font-semibold mb-2">Bibliothèque complète</h3>
                   <p className="text-muted-foreground">Accès à des centaines de ressources pédagogiques</p>
                 </div>
-                <div className="text-center p-6 rounded-2xl bg-card border border-secondary/10">
+                <div className="text-center p-6 rounded-2xl bg-card border border-secondary/10 hover-lift feature-card animate-fadeInUp delay-400">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-secondary/10 flex items-center justify-center">
                     <Video className="h-8 w-8 text-secondary" />
                   </div>
                   <h3 className="text-xl font-semibold mb-2">Sessions Live</h3>
                   <p className="text-muted-foreground">Cours en direct avec des formateurs expérimentés</p>
                 </div>
-                <div className="text-center p-6 rounded-2xl bg-card border border-accent/10">
+                <div className="text-center p-6 rounded-2xl bg-card border border-accent/10 hover-lift feature-card animate-fadeInUp delay-600">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent/10 flex items-center justify-center">
                     <MessageSquare className="h-8 w-8 text-accent" />
                   </div>
@@ -820,65 +1102,38 @@ const HomePage = () => {
           </section>
         )}
 
-        {/* Section Témoignages */}
+        {/* Section Témoignages avec défilement automatique */}
         {sections.testimonials !== false && testimonials.length > 0 && (
           <section ref={testimonialsRef} id="testimonials" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8">
             <div className="container mx-auto max-w-7xl">
               <div className="text-center mb-12 sm:mb-16">
-                <Badge className="mb-4" variant="secondary">
+                <Badge className="mb-4 animate-scaleIn" variant="secondary">
                   <Star className="w-3 h-3 mr-1 inline fill-current" /> Ils nous font confiance
                 </Badge>
-                <h2 className="mb-4 text-3xl font-bold text-foreground">Ce que disent nos apprenants</h2>
-                <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
+                <h2 className="mb-4 text-3xl font-bold text-foreground animate-fadeInUp">Ce que disent nos apprenants</h2>
+                <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto animate-fadeInUp delay-100">
                   Des centaines de candidats ont déjà réussi leur concours grâce à nous
                 </p>
               </div>
-              <div className="relative group">
-                <button onClick={() => scrollTestimonials("left")} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 dark:bg-gray-800/90 rounded-full p-2 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-white dark:hover:bg-gray-700">
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-                <div ref={scrollContainerRef} className="overflow-x-auto scroll-smooth snap-mandatory snap-x flex gap-6 pb-4 hide-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                  {testimonials.map((testimonial, idx) => (
-                    <div key={idx} className="snap-start shrink-0 w-80 md:w-96 bg-card rounded-xl p-6 shadow-lg border hover:shadow-xl transition-all">
-                      <div className="flex items-center gap-4 mb-4">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
-                          {testimonial.avatar || testimonial.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-lg">{testimonial.name}</p>
-                          <p className="text-sm text-muted-foreground">{testimonial.role}</p>
-                        </div>
-                      </div>
-                      <div className="flex mb-3">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} className={`w-5 h-5 ${i < testimonial.rating ? "fill-yellow-500 text-yellow-500" : "text-gray-300"}`} />
-                        ))}
-                      </div>
-                      <p className="text-muted-foreground italic leading-relaxed">"{testimonial.content}"</p>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={() => scrollTestimonials("right")} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 dark:bg-gray-800/90 rounded-full p-2 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-white dark:hover:bg-gray-700">
-                  <ChevronRight className="w-6 h-6" />
-                </button>
-              </div>
+              
+              <AutoScrollCarousel testimonials={testimonials} />
             </div>
           </section>
         )}
 
-        {/* PRO Section */}
+        {/* PRO Section - Call to Action */}
         <section ref={proRef} id="pro" className="py-16 sm:py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-primary/10 to-secondary/10">
           <div className="container mx-auto max-w-7xl text-center">
-            <Badge className="mb-5 text-sm sm:text-base py-1 px-3 font-bold text-white" style={{ backgroundColor: secondaryColor + "20", borderColor: secondaryColor + "40" }}>
+            <Badge className="mb-5 text-sm sm:text-base py-1 px-3 font-bold text-white animate-scaleIn" style={{ backgroundColor: secondaryColor + "20", borderColor: secondaryColor + "40" }}>
               <Crown className="w-3 h-3 mr-1 inline text-white" /> Passez à la vitesse supérieure
             </Badge>
-            <h2 className="mb-4 text-3xl md:text-4xl font-bold">
+            <h2 className="mb-4 text-3xl md:text-4xl font-bold animate-fadeInUp">
               Prêt à <span className="gradient-text">réussir</span> votre concours ?
             </h2>
-            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
+            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-8 animate-fadeInUp delay-100">
               Rejoignez des milliers d'apprenants qui ont déjà choisi SIGEF
             </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <div className="flex flex-col sm:flex-row justify-center gap-4 animate-fadeInUp delay-200">
               <Button size="lg" className="min-h-12 text-base px-8 hover-lift animate-pulse-glow" asChild style={{ backgroundColor: primaryColor, color: "#fff" }}>
                 <Link to="/subscription" className="flex items-center justify-center gap-2">
                   <Crown className="h-5 w-5" /> Commencer mon abonnement PRO <ArrowRight className="h-5 w-5" />
@@ -893,7 +1148,7 @@ const HomePage = () => {
                 </Button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-6">Sans engagement - Annulation à tout moment</p>
+            <p className="text-xs text-muted-foreground mt-6 animate-fadeInUp delay-300">Sans engagement - Annulation à tout moment</p>
           </div>
         </section>
 

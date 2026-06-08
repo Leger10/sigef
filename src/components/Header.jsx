@@ -118,7 +118,7 @@ const Header = ({ customConfig }) => { // ← Ajout de customConfig comme prop
   const navItems = [
     { label: "Accueil", href: homeLink },
     { label: "Formations", href: formationsLink },
-    { label: "Fonctionnalités", href: fonctionnalitesLink },
+   
   ];
 
   return (

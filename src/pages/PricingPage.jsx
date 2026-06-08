@@ -236,11 +236,6 @@ const PricingPage = () => {
                             <p className="text-2xl font-bold text-white">{pack.priceYear}</p>
                             <p className="text-xs text-green-400">Économisez 2 mois</p>
                           </div>
-                          <div className="bg-primary/10 rounded-xl p-3 text-center border border-primary/30">
-                            <p className="text-sm text-primary">Achat Unique</p>
-                            <p className="text-2xl font-bold text-primary">{pack.oneTime}</p>
-                            <p className="text-xs text-primary/80">Licence à vie</p>
-                          </div>
                         </div>
                         <ul className="space-y-3">
                           {pack.features.map((feat, i) => (

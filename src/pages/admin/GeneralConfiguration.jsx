@@ -13,6 +13,20 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Target,
+  Video,
+  MessageSquare,
+  Calendar,
+  Headphones,
+  Award,
+  Users,
+  BarChart3,
+  Crown,
+  BookOpen,
+  Sparkles,
+  CheckCircle,
+  Shield,
+  Trophy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.jsx";
 import { Input } from "@/components/ui/input.jsx";
@@ -43,6 +57,26 @@ import { Skeleton } from "@/components/ui/skeleton.jsx";
 import { toast } from "sonner";
 import { supabase, getFileUrl, uploadFile } from "@/lib/supabaseClient.js";
 import { useAuth } from "@/contexts/AuthContext.jsx";
+
+// Mapping des icônes pour l'aperçu
+const iconMap = {
+  Target: Target,
+  Video: Video,
+  MessageSquare: MessageSquare,
+  Calendar: Calendar,
+  Headphones: Headphones,
+  Award: Award,
+  Users: Users,
+  BarChart3: BarChart3,
+  Crown: Crown,
+  BookOpen: BookOpen,
+  Settings: Settings,
+  Sparkles: Sparkles,
+  Star: Star,
+  CheckCircle: CheckCircle,
+  Shield: Shield,
+  Trophy: Trophy,
+};
 
 // Liste des icônes disponibles pour les fonctionnalités marketing
 const AVAILABLE_ICONS = [
@@ -978,7 +1012,7 @@ const GeneralConfiguration = () => {
                   </div>
                 </div>
 
-                {/* Marketing Features - Interface simple */}
+                {/* Marketing Features - Interface avec aperçu */}
                 <div className="space-y-4 border-t pt-6">
                   <h3 className="text-lg font-semibold">
                     Fonctionnalités marketing (section PRO)
@@ -995,18 +1029,26 @@ const GeneralConfiguration = () => {
                         className="border rounded-lg p-4 bg-muted/20"
                       >
                         <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold">{feature.title}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {feature.description}
-                            </p>
-                            <div className="flex gap-2 mt-1">
-                              <Badge variant="secondary" className="text-xs">
-                                {feature.badge}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                {feature.icon}
-                              </Badge>
+                          <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center text-white shadow-md`}>
+                              {(() => {
+                                const IconComponent = iconMap[feature.icon] || Crown;
+                                return <IconComponent className="w-6 h-6" />;
+                              })()}
+                            </div>
+                            <div>
+                              <p className="font-semibold">{feature.title}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {feature.description}
+                              </p>
+                              <div className="flex gap-2 mt-1">
+                                <Badge variant="secondary" className="text-xs">
+                                  {feature.badge}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {feature.icon}
+                                </Badge>
+                              </div>
                             </div>
                           </div>
                           <div className="flex gap-2">
@@ -1038,33 +1080,72 @@ const GeneralConfiguration = () => {
                     )}
                   </div>
 
+                  {/* Formulaire d'ajout / édition avec aperçu */}
                   <div className="border rounded-lg p-4 bg-card">
                     <h4 className="font-medium mb-3">
                       {editingFeatureIndex !== null
                         ? "Modifier la fonctionnalité"
                         : "Ajouter une fonctionnalité"}
                     </h4>
+                    
+                    {/* Aperçu en temps réel */}
+                    <div className="mb-4 p-4 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border">
+                      <p className="text-sm text-muted-foreground mb-2">Aperçu :</p>
+                      <div className="flex items-center gap-4">
+                        <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${newFeature.color} flex items-center justify-center text-white shadow-md`}>
+                          {(() => {
+                            const IconComponent = iconMap[newFeature.icon] || Crown;
+                            return <IconComponent className="w-7 h-7" />;
+                          })()}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-base">{newFeature.title || "Titre de la fonctionnalité"}</h4>
+                            <Badge variant="secondary" className="text-xs">
+                              {newFeature.badge || "Badge"}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {newFeature.description || "Description de la fonctionnalité..."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Icône</Label>
-                        <Select
-                          value={newFeature.icon}
-                          onValueChange={(v) =>
-                            setNewFeature({ ...newFeature, icon: v })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AVAILABLE_ICONS.map((icon) => (
-                              <SelectItem key={icon} value={icon}>
-                                {icon}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex gap-2 items-center">
+                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${newFeature.color} flex items-center justify-center text-white shadow-sm`}>
+                            {(() => {
+                              const IconComponent = iconMap[newFeature.icon] || Crown;
+                              return <IconComponent className="w-5 h-5" />;
+                            })()}
+                          </div>
+                          <Select
+                            value={newFeature.icon}
+                            onValueChange={(v) => setNewFeature({ ...newFeature, icon: v })}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {AVAILABLE_ICONS.map((icon) => {
+                                const IconComp = iconMap[icon] || Crown;
+                                return (
+                                  <SelectItem key={icon} value={icon}>
+                                    <div className="flex items-center gap-2">
+                                      <IconComp className="w-4 h-4" />
+                                      <span>{icon}</span>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
+                      
                       <div className="space-y-2">
                         <Label>Titre *</Label>
                         <Input
@@ -1078,6 +1159,7 @@ const GeneralConfiguration = () => {
                           placeholder="Ex: Programmes personnalisés"
                         />
                       </div>
+                      
                       <div className="space-y-2">
                         <Label>Description</Label>
                         <Input
@@ -1091,6 +1173,7 @@ const GeneralConfiguration = () => {
                           placeholder="Courte description"
                         />
                       </div>
+                      
                       <div className="space-y-2">
                         <Label>Badge</Label>
                         <Input
@@ -1104,27 +1187,33 @@ const GeneralConfiguration = () => {
                           placeholder="Ex: Sur mesure"
                         />
                       </div>
+                      
                       <div className="space-y-2 md:col-span-2">
                         <Label>Couleur (dégradé)</Label>
-                        <Select
-                          value={newFeature.color}
-                          onValueChange={(v) =>
-                            setNewFeature({ ...newFeature, color: v })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {COLOR_GRADIENTS.map((g) => (
-                              <SelectItem key={g} value={g}>
-                                {g}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex gap-3 items-center flex-wrap">
+                          <div className={`w-20 h-10 rounded-lg bg-gradient-to-r ${newFeature.color} shadow-md border`}></div>
+                          <Select
+                            value={newFeature.color}
+                            onValueChange={(v) => setNewFeature({ ...newFeature, color: v })}
+                          >
+                            <SelectTrigger className="w-64">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {COLOR_GRADIENTS.map((g) => (
+                                <SelectItem key={g} value={g}>
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-8 h-4 rounded bg-gradient-to-r ${g}`}></div>
+                                    <span className="text-sm">{g}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
+                    
                     <div className="flex gap-2 mt-4">
                       {editingFeatureIndex !== null ? (
                         <>
