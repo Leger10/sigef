@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
 import { Badge } from '@/components/ui/badge.jsx';
 import { Skeleton } from '@/components/ui/skeleton.jsx';
-import { Plus, Trash2, ArrowLeft, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, CheckCircle, XCircle, Loader2, Crown, Users, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AddQuizQuestions = () => {
@@ -21,9 +21,10 @@ const AddQuizQuestions = () => {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [updatingAudience, setUpdatingAudience] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState({
     question: '',
-    type: 'multiple_choice', // 'multiple_choice' ou 'true_false'
+    type: 'multiple_choice',
     options: ['', '', '', ''],
     correct_answer: '',
     points: 1
@@ -57,6 +58,32 @@ const AddQuizQuestions = () => {
     };
     if (quizId) fetchQuiz();
   }, [quizId]);
+
+  // Fonction pour basculer le public cible
+  const toggleAudience = async () => {
+    if (!quiz) return;
+    
+    setUpdatingAudience(true);
+    const newProOnly = !quiz.pro_only;
+    const audienceText = newProOnly ? 'réservé aux apprenants PRO' : 'accessible à tous les apprenants';
+    
+    try {
+      const { error } = await supabase
+        .from('quizzes')
+        .update({ pro_only: newProOnly })
+        .eq('id', quizId);
+
+      if (error) throw error;
+
+      setQuiz({ ...quiz, pro_only: newProOnly });
+      toast.success(`Quiz maintenant ${audienceText}`);
+    } catch (error) {
+      console.error(error);
+      toast.error('Erreur lors de la modification du public cible');
+    } finally {
+      setUpdatingAudience(false);
+    }
+  };
 
   const handleAddQuestion = async () => {
     if (!currentQuestion.question.trim()) {
@@ -192,13 +219,67 @@ const AddQuizQuestions = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Ajouter des Questions</h1>
-            <p className="text-muted-foreground">Quiz : {quiz.title} | {questions.length} question(s)</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-3xl font-bold tracking-tight">Ajouter des Questions</h1>
+              {/* Badge Public cible - cliquable pour basculer */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleAudience}
+                disabled={updatingAudience}
+                className={`gap-2 ${quiz.pro_only ? 'border-amber-500 bg-amber-500/10 hover:bg-amber-500/20' : 'border-primary bg-primary/10 hover:bg-primary/20'}`}
+              >
+                {updatingAudience ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" />
+                )}
+                {quiz.pro_only ? (
+                  <><Crown className="h-3 w-3" /> Réservé PRO</>
+                ) : (
+                  <><Users className="h-3 w-3" /> Tous les apprenants</>
+                )}
+              </Button>
+            </div>
+            <p className="text-muted-foreground mt-1">Quiz : {quiz.title} | {questions.length} question(s)</p>
           </div>
         </div>
         <Button onClick={handlePublishQuiz} disabled={questions.length === 0}>
           <CheckCircle className="h-4 w-4 mr-2" /> Publier le quiz
         </Button>
+      </div>
+
+      {/* Information sur le public cible avec bouton de bascule */}
+      <div className={`p-4 rounded-lg ${quiz.pro_only ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-primary/10 border border-primary/30'}`}>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            {quiz.pro_only ? (
+              <Crown className="h-5 w-5 text-amber-500" />
+            ) : (
+              <Users className="h-5 w-5 text-primary" />
+            )}
+            <span className={quiz.pro_only ? 'text-amber-600' : 'text-primary'}>
+              {quiz.pro_only 
+                ? '🔒 Ce quiz est réservé aux apprenants avec abonnement PRO actif'
+                : '🌍 Ce quiz est accessible à tous les apprenants du cycle'
+              }
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleAudience}
+            disabled={updatingAudience}
+            className="gap-1"
+          >
+            {updatingAudience ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3" />
+            )}
+            Basculer
+          </Button>
+        </div>
       </div>
 
       {questions.length > 0 && (

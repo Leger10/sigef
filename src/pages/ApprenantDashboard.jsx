@@ -1398,66 +1398,67 @@ const ApprenantDashboard = () => {
                     </p>
                   </div>
 
-                  {(() => {
-                    const attemptedQuizIds = quizScores.map((s) => s.quiz_id);
-                    const available = availableQuizzes.filter(
-                      (q) => !attemptedQuizIds.includes(q.id),
-                    );
-                    return available.length > 0 ? (
-                      <div>
-                        <h3 className="text-lg font-semibold text-white mb-3">
-                          À venir
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {available.map((quiz) => (
-                            <Card
-                              key={quiz.id}
-                              className="premium-card hover:border-primary/30 transition-all"
-                            >
-                              <CardHeader>
-                                <CardTitle className="text-white">
-                                  {quiz.title}
-                                </CardTitle>
-                                {quiz.description && (
-                                  <CardDescription>
-                                    {quiz.description}
-                                  </CardDescription>
-                                )}
-                              </CardHeader>
-                              <CardContent>
-                                <div className="flex flex-wrap gap-2 mb-4">
-                                  <Badge variant="outline">
-                                    Seuil : {quiz.passing_score}%
-                                  </Badge>
-                                  {quiz.time_limit && (
-                                    <Badge variant="outline">
-                                      ⏱️ {quiz.time_limit} min
-                                    </Badge>
-                                  )}
-                                  <Badge variant="outline">
-                                    Max : {quiz.max_attempts || 1} tentative(s)
-                                  </Badge>
-                                  {quiz.pro_only && (
-                                    <Badge
-                                      variant="default"
-                                      className="bg-amber-500"
-                                    >
-                                      PRO uniquement
-                                    </Badge>
-                                  )}
-                                </div>
-                                <Button asChild className="w-full">
-                                  <Link to={`/quiz/${quiz.id}`}>
-                                    Commencer le quiz
-                                  </Link>
-                                </Button>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null;
-                  })()}
+                {(() => {
+  const attemptedQuizIds = quizScores.map((s) => s.quiz_id);
+  
+  const available = availableQuizzes.filter((q) => {
+    if (attemptedQuizIds.includes(q.id)) return false;
+    if (q.pro_only && !hasActivePro) return false;
+    return true;
+  });
+  
+  return available.length > 0 ? (
+    <div>
+      <h3 className="text-lg font-semibold text-white mb-3">
+        À venir
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {available.map((quiz) => (
+          <Card
+            key={quiz.id}
+            className="premium-card hover:border-primary/30 transition-all"
+          >
+            <CardHeader>
+              <CardTitle className="text-white">
+                {quiz.title}
+              </CardTitle>
+              {quiz.description && (
+                <CardDescription>
+                  {quiz.description}
+                </CardDescription>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <Badge variant="outline">
+                  Seuil : {quiz.passing_score}%
+                </Badge>
+                {quiz.time_limit && (
+                  <Badge variant="outline">
+                    ⏱️ {quiz.time_limit} min
+                  </Badge>
+                )}
+                <Badge variant="outline">
+                  Max : {quiz.max_attempts || 1} tentative(s)
+                </Badge>
+                {quiz.pro_only && (
+                  <Badge variant="default" className="bg-amber-500">
+                    <Crown className="h-3 w-3 mr-1" /> PRO uniquement
+                  </Badge>
+                )}
+              </div>
+              <Button asChild className="w-full">
+                <Link to={`/quiz/${quiz.id}`}>
+                  Commencer le quiz
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  ) : null;
+})()}
 
                   {quizScores.length > 0 && (
                     <div className="mt-8">

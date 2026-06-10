@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label.jsx';
 import { Textarea } from '@/components/ui/textarea.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.jsx';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select.jsx';
+import { Badge } from '@/components/ui/badge.jsx';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Crown, Users } from 'lucide-react';
 import { notifyCycleApprenants, notifyAdminAndSuperAdmins } from '@/services/notificationService';
 
 const CreateQuiz = () => {
@@ -32,7 +33,7 @@ const CreateQuiz = () => {
     is_published: true,
     show_correct_answers: true,
     randomize_questions: false,
-    pro_only: false,
+    pro_only: false,  // false = tous les apprenants, true = seulement PRO
   });
 
   useEffect(() => {
@@ -128,11 +129,12 @@ const CreateQuiz = () => {
 
       const cycle = cycles.find(c => c.id === selectedCycle);
       const cycleName = cycle?.name || 'ce cycle';
+      const audienceText = formData.pro_only ? 'réservé aux apprenants PRO' : 'ouvert à tous les apprenants';
 
       await notifyCycleApprenants(
         selectedCycle,
         '📝 Nouveau quiz disponible',
-        `Le quiz "${formData.title}" a été ajouté au cycle ${cycleName}.`,
+        `Le quiz "${formData.title}" a été ajouté au cycle ${cycleName} (${audienceText}).`,
         'quiz',
         `/quiz/${quiz.id}`
       );
@@ -141,7 +143,7 @@ const CreateQuiz = () => {
         selectedCycle,
         null,
         `📝 Nouveau quiz créé par ${currentUser.full_name || currentUser.email}`,
-        `Quiz "${formData.title}" ajouté au cycle ${cycleName}.`,
+        `Quiz "${formData.title}" ajouté au cycle ${cycleName} (${audienceText}).`,
         'quiz',
         `/admin/quiz-management`
       );
@@ -175,6 +177,8 @@ const CreateQuiz = () => {
       </div>
     );
   }
+
+  const selectedCycleObj = cycles.find(c => c.id === selectedCycle);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-12">
@@ -218,28 +222,55 @@ const CreateQuiz = () => {
               <Textarea id="description" name="description" value={formData.description} onChange={handleChange} rows={3} />
             </div>
 
+            {/* Section Public cible - Style identique à CreateSession */}
             <div className="space-y-2">
               <Label>Public cible</Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="pro_only"
-                    checked={!formData.pro_only}
-                    onChange={() => setFormData(prev => ({ ...prev, pro_only: false }))}
-                  />
-                  <span>Tous les apprenants</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="pro_only"
-                    checked={formData.pro_only}
-                    onChange={() => setFormData(prev => ({ ...prev, pro_only: true }))}
-                  />
-                  <span>Réservé aux abonnés PRO</span>
-                </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div
+                  onClick={() => setFormData(prev => ({ ...prev, pro_only: false }))}
+                  className={`cursor-pointer rounded-lg border-2 p-4 transition-all ${
+                    !formData.pro_only
+                      ? 'border-primary bg-primary/5 shadow-md'
+                      : 'border-border hover:border-primary/50 hover:bg-muted/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${!formData.pro_only ? 'bg-primary/20' : 'bg-muted'}`}>
+                      <Users className={`h-5 w-5 ${!formData.pro_only ? 'text-primary' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div>
+                      <p className={`font-medium ${!formData.pro_only ? 'text-primary' : ''}`}>Tous les apprenants</p>
+                      <p className="text-xs text-muted-foreground">Accessible à tous les apprenants du cycle</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setFormData(prev => ({ ...prev, pro_only: true }))}
+                  className={`cursor-pointer rounded-lg border-2 p-4 transition-all ${
+                    formData.pro_only
+                      ? 'border-amber-500 bg-amber-500/5 shadow-md'
+                      : 'border-border hover:border-amber-500/50 hover:bg-muted/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${formData.pro_only ? 'bg-amber-500/20' : 'bg-muted'}`}>
+                      <Crown className={`h-5 w-5 ${formData.pro_only ? 'text-amber-500' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div>
+                      <p className={`font-medium ${formData.pro_only ? 'text-amber-500' : ''}`}>Réservé aux PRO</p>
+                      <p className="text-xs text-muted-foreground">Uniquement pour les apprenants avec abonnement PRO actif</p>
+                    </div>
+                  </div>
+                </div>
               </div>
+              {formData.pro_only && (
+                <div className="mt-2 p-2 bg-amber-500/10 rounded-lg border border-amber-500/30">
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <Crown className="h-3 w-3" /> Seuls les apprenants avec un abonnement PRO actif pourront accéder à ce quiz.
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -285,6 +316,21 @@ const CreateQuiz = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Résumé */}
+        {selectedCycleObj && (
+          <Card className="bg-muted/30">
+            <CardContent className="p-4">
+              <p className="text-sm font-medium mb-2">📋 Résumé du quiz</p>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p>• Cycle : {selectedCycleObj.name}</p>
+                <p>• Public : {formData.pro_only ? '🔒 Réservé aux abonnés PRO' : '🌍 Tous les apprenants'}</p>
+                <p>• Score requis : {formData.passing_score}%</p>
+                {formData.time_limit && <p>• Temps limite : {formData.time_limit} minutes</p>}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="flex justify-end gap-4">
           <Button type="button" variant="outline" onClick={() => navigate('/formateur')}>Annuler</Button>

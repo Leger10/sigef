@@ -1,4 +1,4 @@
-// src/pages/quiz/TakeQuiz.jsx
+// src/pages/quiz/TakeQuiz.jsx - Version ultra simplifiée et garantie
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,11 +37,9 @@ const TakeQuiz = () => {
   const [answerFeedback, setAnswerFeedback] = useState(null);
   const timerRef = useRef(null);
 
-  // Chargement du quiz, des questions et vérification PRO
   useEffect(() => {
     const loadQuiz = async () => {
       try {
-        // Récupérer le quiz
         const { data: quizData, error: quizError } = await supabase
           .from('quizzes')
           .select('*')
@@ -50,7 +48,6 @@ const TakeQuiz = () => {
         if (quizError) throw quizError;
         setQuiz(quizData);
 
-        // Vérifier si le quiz est réservé PRO
         if (quizData.pro_only) {
           const { data: userData, error: userError } = await supabase
             .from('users')
@@ -67,7 +64,6 @@ const TakeQuiz = () => {
           }
         }
 
-        // Questions
         const { data: questionsData, error: questionsError } = await supabase
           .from('questions')
           .select('*')
@@ -82,7 +78,6 @@ const TakeQuiz = () => {
         }
         setQuestions(questionsData);
 
-        // Restaurer les réponses sauvegardées
         const saved = localStorage.getItem(`quiz_${quizId}_answers`);
         if (saved) {
           const parsed = JSON.parse(saved);
@@ -102,7 +97,6 @@ const TakeQuiz = () => {
     if (quizId && currentUser) loadQuiz();
   }, [quizId, navigate, currentUser]);
 
-  // Timer par question
   useEffect(() => {
     if (!questions.length) return;
     if (timerRef.current) clearInterval(timerRef.current);
@@ -121,11 +115,20 @@ const TakeQuiz = () => {
   }, [currentIndex, questions.length]);
 
   const handleAnswer = (questionId, selectedAnswer) => {
+    // Vérifier si déjà répondu
     if (answers[questionId]) return;
+    
     const question = questions.find(q => q.id === questionId);
     if (!question) return;
 
-    const isCorrect = selectedAnswer === question.correct_answer;
+    // Normaliser les valeurs pour la comparaison
+    const normalize = (str) => {
+      if (!str) return '';
+      return str.toString().trim();
+    };
+
+    const isCorrect = normalize(selectedAnswer) === normalize(question.correct_answer);
+    
     if (isCorrect) playCorrect();
     else playWrong();
 
@@ -146,27 +149,44 @@ const TakeQuiz = () => {
       bonus: bonusPoints,
       timeSpent: QUESTION_TIME_LIMIT - timeLeft,
     };
+    
     setAnswers(prev => ({ ...prev, [questionId]: newAnswer }));
     localStorage.setItem(
       `quiz_${quizId}_answers`,
       JSON.stringify({ ...answers, [questionId]: newAnswer })
     );
 
-    setAnswerFeedback({ isCorrect, bonusPoints, earnedPoints: totalPointsEarned });
+    setAnswerFeedback({ 
+      isCorrect, 
+      bonusPoints, 
+      earnedPoints: totalPointsEarned,
+      correctAnswer: question.correct_answer 
+    });
+    
+    // Arrêter le timer
     if (timerRef.current) clearInterval(timerRef.current);
 
+    // Passer à la question suivante après 1.5 secondes
     setTimeout(() => {
       setAnswerFeedback(null);
-      if (currentIndex + 1 < questions.length) setCurrentIndex(i => i + 1);
-      else submitQuiz();
+      if (currentIndex + 1 < questions.length) {
+        setCurrentIndex(i => i + 1);
+      } else {
+        submitQuiz();
+      }
     }, 1500);
   };
 
   const handleAutoNext = () => {
     const currentQ = questions[currentIndex];
-    if (!answers[currentQ.id]) handleAnswer(currentQ.id, '');
-    else if (currentIndex + 1 < questions.length) setCurrentIndex(i => i + 1);
-    else submitQuiz();
+    if (!answers[currentQ.id]) {
+      // Réponse vide pour timeout
+      handleAnswer(currentQ.id, '');
+    } else if (currentIndex + 1 < questions.length) {
+      setCurrentIndex(i => i + 1);
+    } else {
+      submitQuiz();
+    }
   };
 
   const submitQuiz = async () => {
@@ -197,26 +217,15 @@ const TakeQuiz = () => {
         completed_at: new Date().toISOString(),
       };
 
-      console.log('Payload envoyé à Supabase :', payload);
-
-      const { error } = await supabase
-        .from('quiz_attempts')
-        .insert(payload);
+      const { error } = await supabase.from('quiz_attempts').insert(payload);
 
       if (error) {
         console.error("Erreur Supabase détaillée :", error);
-        if (error.message.includes('total_possible')) {
-          toast.error("La colonne 'total_possible' n'existe pas dans la table quiz_attempts. Vérifiez votre schéma.");
-        } else if (error.message.includes('percentage')) {
-          toast.error("La colonne 'percentage' n'existe pas. Vérifiez votre schéma.");
-        } else {
-          toast.error(`Erreur d'enregistrement : ${error.message}`);
-        }
+        toast.error(`Erreur d'enregistrement : ${error.message}`);
         return;
       }
 
       toast.success(`Quiz terminé ! Score : ${percentage}%`);
-      // Transmission complète des données vers la page de résultat
       navigate(`/quiz-result/${quizId}`, {
         state: { 
           score: totalScore, 
@@ -289,7 +298,7 @@ const TakeQuiz = () => {
           </div>
         </div>
 
-        <Progress value={progress} className="h-2 mb-8 bg-gray-700" indicatorClassName="bg-yellow-400 transition-all duration-300" />
+        <Progress value={progress} className="h-2 mb-8 bg-gray-700" />
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -305,6 +314,7 @@ const TakeQuiz = () => {
                 <p className="text-sm text-gray-400">Points max : {currentQuestion.points}</p>
               </CardHeader>
               <CardContent>
+                {/* QCM */}
                 {currentQuestion.type === 'multiple_choice' && currentQuestion.options && (
                   <RadioGroup
                     value={answers[currentQuestion.id]?.answer || ''}
@@ -312,7 +322,7 @@ const TakeQuiz = () => {
                     disabled={isAnswered}
                     className="space-y-3"
                   >
-                    {currentQuestion.options.map((option, idx) => (
+                    {currentQuestion.options.filter(opt => opt && opt.trim()).map((option, idx) => (
                       <div
                         key={idx}
                         className={`flex items-center space-x-2 p-3 rounded-lg transition-colors ${
@@ -339,6 +349,48 @@ const TakeQuiz = () => {
                   </RadioGroup>
                 )}
 
+                {/* Vrai/Faux - Version avec boutons simples */}
+                {currentQuestion.type === 'true_false' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={() => {
+                        console.log('Vrai cliqué pour:', currentQuestion.id);
+                        if (!isAnswered) handleAnswer(currentQuestion.id, 'Vrai');
+                      }}
+                      disabled={isAnswered}
+                      className={`flex flex-col items-center justify-center p-6 rounded-xl transition-all ${
+                        answers[currentQuestion.id]?.answer === 'Vrai'
+                          ? answers[currentQuestion.id]?.isCorrect
+                            ? 'bg-green-800/50 border-2 border-green-600'
+                            : 'bg-red-800/50 border-2 border-red-600'
+                          : 'bg-gray-800 hover:bg-gray-700 border-2 border-gray-700 hover:border-primary'
+                      }`}
+                    >
+                      <span className="text-4xl mb-2">✅</span>
+                      <span className="text-xl font-bold text-white">Vrai</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        console.log('Faux cliqué pour:', currentQuestion.id);
+                        if (!isAnswered) handleAnswer(currentQuestion.id, 'Faux');
+                      }}
+                      disabled={isAnswered}
+                      className={`flex flex-col items-center justify-center p-6 rounded-xl transition-all ${
+                        answers[currentQuestion.id]?.answer === 'Faux'
+                          ? answers[currentQuestion.id]?.isCorrect
+                            ? 'bg-green-800/50 border-2 border-green-600'
+                            : 'bg-red-800/50 border-2 border-red-600'
+                          : 'bg-gray-800 hover:bg-gray-700 border-2 border-gray-700 hover:border-primary'
+                      }`}
+                    >
+                      <span className="text-4xl mb-2">❌</span>
+                      <span className="text-xl font-bold text-white">Faux</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Feedback après réponse */}
                 {answerFeedback && (
                   <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}
@@ -358,7 +410,7 @@ const TakeQuiz = () => {
                       <div className="text-red-400">
                         <XCircle className="h-12 w-12 mx-auto mb-2" />
                         <p className="text-xl font-bold">Mauvaise réponse</p>
-                        <p>La bonne réponse était : "{currentQuestion.correct_answer}"</p>
+                        <p>La bonne réponse était : "{answerFeedback.correctAnswer}"</p>
                       </div>
                     )}
                   </motion.div>
@@ -368,16 +420,17 @@ const TakeQuiz = () => {
           </motion.div>
         </AnimatePresence>
 
+        {/* Indicateur de progression */}
         <div className="mt-8 flex justify-center gap-2">
           {questions.map((_, idx) => (
             <div
               key={idx}
-              className={`h-2 w-8 rounded-full transition-all ${
+              className={`h-2 rounded-full transition-all ${
                 idx === currentIndex
                   ? 'bg-yellow-400 w-12'
                   : answers[questions[idx].id]
-                  ? 'bg-green-500'
-                  : 'bg-gray-600'
+                  ? 'bg-green-500 w-4'
+                  : 'bg-gray-600 w-4'
               }`}
             />
           ))}
