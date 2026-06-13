@@ -837,7 +837,7 @@ const HomePage = () => {
                 </div>
               )}
               
-            <div className={`${animated.hero ? "animate-fadeInUp delay-100" : "opacity-100"}`}>
+             <div className={`${animated.hero ? "animate-fadeInUp delay-100" : "opacity-100"}`}>
   <Badge
     className={`mb-6 text-sm sm:text-base py-1 px-3 font-bold transition-all duration-1000 ease-in-out animate-blinkSoft text-white`}
     style={{
@@ -848,6 +848,7 @@ const HomePage = () => {
     {activeConfig?.hero_badge_text || "Plateforme SaaS Multi-Tenant de Gestion Académique et Formation en Ligne"}
   </Badge>
 </div>
+              
               <h1 className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight ${animated.hero ? "animate-fadeInUp delay-300" : "opacity-100"}`}>
                 {siteName}
               </h1>
