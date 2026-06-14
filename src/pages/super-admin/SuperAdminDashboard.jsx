@@ -19,8 +19,10 @@ import {
   MessageSquare,
   ChevronDown,
   Mail,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.jsx";
+import { Tabs, TabsContent } from "@/components/ui/tabs.jsx";
 import { useAuth } from "@/contexts/AuthContext.jsx";
 import { useNavigate, Link } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile.jsx";
@@ -43,6 +45,7 @@ import AllPaymentsManagement from "./AllPaymentsManagement.jsx";
 import ActivityLogs from "./ActivityLogs.jsx";
 import PlatformConfig from "./PlatformConfig.jsx";
 import ContactRequests from "./ContactRequests.jsx";
+import DocumentGenerator from "@/components/admin/DocumentGenerator.jsx";
 
 const SuperAdminDashboard = () => {
   const { currentUser, logout } = useAuth();
@@ -191,10 +194,9 @@ const SuperAdminDashboard = () => {
 
   const handleCycleChange = (cycleId) => {
     setSelectedCycleId(cycleId);
-    setUnreadMessagesCount(0); // reset visuel avant rechargement
+    setUnreadMessagesCount(0);
   };
 
-  // Callback pour mettre à jour le compteur depuis CycleChat
   const handleUnreadCountChange = (newCount) => {
     setUnreadMessagesCount(newCount);
   };
@@ -260,6 +262,12 @@ const SuperAdminDashboard = () => {
       icon: Cog,
       description: "Paramètres de la plateforme",
     },
+    {
+      id: "documents",
+      label: "Documents",
+      icon: FileText,
+      description: "Générer des documents contractuels",
+    },
   ];
 
   const renderContent = () => {
@@ -286,6 +294,8 @@ const SuperAdminDashboard = () => {
         return <ActivityLogs />;
       case "config":
         return <PlatformConfig />;
+      case "documents":
+        return <DocumentGenerator />;
       default:
         return <GlobalStats stats={stats} onRefresh={loadStats} />;
     }
@@ -381,7 +391,7 @@ const SuperAdminDashboard = () => {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar avec scroll et structure flexible */}
+        {/* Sidebar */}
         <aside
           className={`
           ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"} 
@@ -391,7 +401,6 @@ const SuperAdminDashboard = () => {
           flex flex-col
         `}
         >
-          {/* Profil utilisateur - fixe en haut */}
           <div className="flex-shrink-0 p-4 border-b border-border bg-gradient-to-r from-primary/5 to-transparent">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/60 rounded-full flex items-center justify-center">
@@ -410,7 +419,6 @@ const SuperAdminDashboard = () => {
             </div>
           </div>
 
-          {/* Zone de navigation scrollable */}
           <div className="flex-1 overflow-y-auto py-4 px-3">
             <nav className="space-y-1">
               {navItems.map((item) => {
@@ -436,7 +444,6 @@ const SuperAdminDashboard = () => {
             </nav>
           </div>
 
-          {/* Footer version & copyright - fixe en bas */}
           <div className="flex-shrink-0 p-4 border-t border-border bg-muted/10 text-center">
             <p className="text-xs text-muted-foreground">Version 2.0.0</p>
             <p className="text-xs text-muted-foreground mt-1">© 2025 SIGEF</p>
@@ -531,9 +538,9 @@ const SuperAdminDashboard = () => {
 
       {/* Fenêtre du chat */}
       {chatOpen && selectedCycleId && (
-           <div className="fixed bottom-28 right-4 z-50 w-96 h-[500px] bg-background border rounded-xl shadow-2xl">
-            <div className="flex justify-between items-center p-3 border-b bg-primary text-white rounded-t-xl">
-              <h3 className="font-semibold">
+        <div className="fixed bottom-28 right-4 z-50 w-96 h-[500px] bg-background border rounded-xl shadow-2xl">
+          <div className="flex justify-between items-center p-3 border-b bg-primary text-white rounded-t-xl">
+            <h3 className="font-semibold">
               Chat du cycle : {selectedCycle?.name || "?"}
             </h3>
             <Button
